@@ -27,16 +27,16 @@ async function getJSON(url, opt) {
 
 async function loadConstants() {
   if (Object.keys(S.heroes).length) return;
-  const c = store.get('blame.const', null);
+  const c = store.get('blame.const2', null);
   if (c && Date.now() - c.ts < 3 * 864e5) { Object.assign(S, { heroes: c.heroes, itemIds: c.itemIds, items: c.items }); return; }
   const [heroes, itemIds, items] = await Promise.all([
     getJSON(API + '/constants/heroes'), getJSON(API + '/constants/item_ids'), getJSON(API + '/constants/items')
   ]);
   const hs = {}, is = {};
-  for (const [k, v] of Object.entries(heroes)) hs[k] = { name: v.localized_name, img: v.img, icon: v.icon, roles: v.roles || [] };
+  for (const [k, v] of Object.entries(heroes)) hs[k] = { name: v.localized_name, npc: v.name, img: v.img, icon: v.icon, roles: v.roles || [] };
   for (const [k, v] of Object.entries(items)) is[k] = { dname: v.dname, img: v.img };
   Object.assign(S, { heroes: hs, itemIds, items: is });
-  store.set('blame.const', { ts: Date.now(), heroes: hs, itemIds, items: is });
+  store.set('blame.const2', { ts: Date.now(), heroes: hs, itemIds, items: is });
 }
 
 const H = p => S.heroes[p.hero_id] || { name: 'Герой #' + p.hero_id, roles: [] };
@@ -490,7 +490,7 @@ function render() {
   app.classList.remove('hidden');
   const parsed = isParsed(m);
   const team = t => S.ps.filter(p => p.team === t);
-  const tabs = [['verdict', 'Вердикт'], ['all', T('Все 10 игроков', 'Кто рак, кто тащер')], ['players', 'Таблица'], ['timeline', 'Ход игры'], ['me', 'Мой разбор']];
+  const tabs = [['verdict', 'Вердикт'], ['story', T('Как слили', 'Как слили')], ['all', T('Все 10 игроков', 'Кто рак, кто тащер')], ['players', 'Таблица'], ['timeline', 'Ход игры'], ['me', 'Мой разбор']];
   app.innerHTML = `
   <div class="matchHead card">
     <div class="side rad ${m.radiant_win ? 'win' : ''}"><span class="tname">${esc(teamName(m, 'radiant'))}</span>${m.radiant_win ? '<span class="badge">Победа</span>' : ''}<div class="mini">${team('radiant').map(p => img(heroIcon(p), 'hicon', H(p).name)).join('')}</div></div>
@@ -508,8 +508,9 @@ function render() {
 
 function renderTab() {
   const body = $('#tabBody');
-  body.innerHTML = ({ verdict: verdictTab, all: allTab, players: playersTab, timeline: timelineTab, me: meTab })[S.tab]();
+  body.innerHTML = ({ verdict: verdictTab, story: storyTab, all: allTab, players: playersTab, timeline: timelineTab, me: meTab })[S.tab]();
   if (S.tab === 'timeline') bindChart();
+  if (S.tab === 'story') afterStory();
 }
 
 function verdictTab() {
@@ -523,7 +524,7 @@ function verdictTab() {
   const mvp = W[0];
   const strongEnemy = mvp && avg(Object.values(mvp.q)) > .78 ? `<p class="note">Учти и соперника: ${esc(pname(mvp))} на ${esc(H(mvp).name)} сыграл лучше, чем в ${Math.round(avg(Object.values(mvp.q)) * 100)}% игр по средним метрикам. Часть поражения — просто сильный противник.</p>` : '';
   const lead = leadInfo(loseT);
-  return `
+  return `${turningBanner()}
   <div class="grid vgrid">
     <article class="card culprit">
       <div class="cbg" style="background-image:url('${esc(heroImg(top))}')"></div>
@@ -838,7 +839,7 @@ async function requestParse() {
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.mode) return setMode(b.dataset.mode);
-  if (b.dataset.tab) { S.tab = b.dataset.tab; document.querySelectorAll('.tabs [data-tab]').forEach(x => x.classList.toggle('on', x === b)); return renderTab(); }
+  if (b.dataset.tab) { S.tab = b.dataset.tab; document.querySelectorAll('.tabs [data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === S.tab)); if (!b.closest('.tabs')) document.querySelector('.tabs').scrollIntoView({ behavior: 'smooth' }); return renderTab(); }
   if (b.dataset.me != null && !b.dataset.act) { S.meSlot = +b.dataset.me; S.tab = 'me'; return render(); }
   if (b.dataset.match) return loadMatch(b.dataset.match, b.dataset.acc);
   if (b.dataset.acc && !b.dataset.act) return showPlayer(b.dataset.acc);
