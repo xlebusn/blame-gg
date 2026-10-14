@@ -296,6 +296,8 @@ select { background: var(--panel2); color: var(--text); border: 1px solid var(--
 .pcard2.good { border-top-color: var(--rad); } .pcard2.bad { border-top-color: var(--accent); } .pcard2.neutral { border-top-color: var(--gold); }
 .pcard2 .ghost { align-self: flex-start; margin-top: auto; }
 .tag { align-self: flex-start; font: 800 13px var(--display); letter-spacing: .04em; padding: 5px 10px; border-radius: 8px; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag.sub { opacity: .75; }
 .tag.good { background: rgba(61, 220, 151, .12); color: var(--rad); }
 .tag.bad { background: rgba(255, 77, 94, .14); color: var(--accent); }
 .tag.neutral { background: rgba(245, 185, 66, .12); color: var(--gold); }
