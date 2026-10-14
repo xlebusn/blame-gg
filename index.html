@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BLAME.GG — разбор матча Dota 2</title>
+<meta name="description" content="Разбор матча Dota 2 по Match ID: кто сильнее всех повлиял на поражение, почему и что исправить.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="./">BLAME<span>.GG</span></a>
+  <button id="meBtn" class="ghost small" type="button">Мой аккаунт</button>
+</header>
+
+<main>
+  <section id="hero" class="hero">
+    <div class="eyebrow">DOTA 2 · РАЗБОР МАТЧА</div>
+    <h1>Кто <em>слил</em> катку?</h1>
+    <p class="lead">Вставь Match ID или найди себя по нику. Покажем, кто сильнее всех потянул команду вниз, на чём именно, и что исправить в следующей игре.</p>
+    <form id="searchForm" class="search" autocomplete="off">
+      <div class="seg" role="tablist" aria-label="Режим поиска">
+        <button type="button" data-mode="match" class="on" role="tab">Матч</button>
+        <button type="button" data-mode="player" role="tab">Игрок</button>
+      </div>
+      <input id="q" inputmode="text" placeholder="Match ID или ссылка на матч">
+      <button class="primary" type="submit">Разобрать</button>
+    </form>
+    <div id="status" class="status" aria-live="polite"></div>
+    <div id="picker"></div>
+    <div id="history"></div>
+  </section>
+
+  <section id="app" class="hidden"></section>
+</main>
+
+<footer>Данные: OpenDota API. Индекс вины — оценка модели, а не приговор: всегда смотри контекст.</footer>
+<script src="app.js"></script>
+</body>
+</html>
