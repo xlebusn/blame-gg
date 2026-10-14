@@ -115,6 +115,66 @@ const TIPS = {
   util: 'Обсы перед тайм-окнами (Рошан, ночь, пуш), сейв-предметы и лечение команды в драке. Помощь — это 30% твоей оценки на этой позиции.'
 };
 
+/* ---------- тон и архетипы ---------- */
+let TONE = store.get('blame.tone', 'toxic');
+const T = (polite, toxic) => TONE === 'toxic' ? toxic : polite;
+const pick = (arr, seed) => arr[Math.abs(seed) % arr.length];
+const fill = (s, p) => s
+  .replace('${deaths}', p.deaths || 0).replace('${kp}', Math.round(p.kp)).replace('${gpm}', fmt(p.gold_per_min))
+  .replace('${td}', fmt(p.tower_damage)).replace('${dmg}', fmt(p.hero_damage)).replace('${blame}', p.blame)
+  .replace('${hero}', H(p).name).replace('${kills}', p.kills || 0);
+
+// Первый подходящий архетип — главный ярлык игрока. Порядок важен.
+const ARCH = [
+  { test: p => p.won && p.blame <= 18 && p.pos <= 3, tone: 'good', t: ['Тащил игру', 'ТАЩЕР'],
+    polite: ['Вытащил матч: лучший по ключевым метрикам в команде.'],
+    toxic: ['Затащил катку на спине, остальные просто рядом постояли.', 'Папа пришёл и раздал. Лоускиллы вокруг могут сказать спасибо.', '${kills} убийств на ${hero}. Вот так выглядит человек, который не ест клей.'] },
+  { test: p => p.pos >= 4 && p.q.util >= .7 && p.blame <= 30, tone: 'good', t: ['Сильный саппорт', 'СВЯТОЙ САППОРТ'],
+    polite: ['Вижен, лечение и ассисты: команда держалась на нём.'],
+    toxic: ['Варды, хил, сейвы. Не заслужил таких тиммейтов.', 'Единственный, кто зашёл в магазин не только за себя. Святой человек.'] },
+  { test: p => (p.deaths || 0) >= 8 && p.q.deaths < .2 && p.q.fight < .55, tone: 'bad', t: ['Слишком много смертей', 'ФИДЕР'],
+    polite: ['Много смертей без отдачи: противник фармил на нём.'],
+    toxic: ['Курьер с золотом для врага. Доставка бесплатная, без выходных.', 'Умер ${deaths} раз. Враги уже думали, что это их нейтральный лагерь.', 'Фидил так, что у врагов кончились слоты под предметы.'] },
+  { test: p => p.q.deaths < .35 && p.q.fight >= .6, tone: 'neutral', t: ['Брал драки на себя', 'КАМИКАДЗЕ'],
+    polite: ['Часто умирал, но и урона в драках давал много.'],
+    toxic: ['Залетал первым и умирал первым, но урон хотя бы нёс. Мясо с пользой.', 'Берсерк без BKB: дамажил много, жил мало.'] },
+  { test: p => p.pos <= 3 && p.q.farm >= .6 && p.q.fight < .35, tone: 'bad', t: ['Фармил, но не дрался', 'AFK-ФАРМЕР'],
+    polite: ['Фарм был, а в драках его не было.'],
+    toxic: ['Лес — его родной дом. Команда дралась 4 на 5, пока он чистил лагеря.', 'Нафармил на шесть слотов и ни разу не нажал их в драке. Крип-бот.', 'Ждал лейта, который так и не наступил.'] },
+  { test: p => p.kp < 35, tone: 'bad', t: ['Мало участвовал в драках', 'НЕВИДИМКА'],
+    polite: ['Участие в убийствах ниже 35%: часто был не там, где команда.'],
+    toxic: ['Участие в убийствах ${kp}%. Это был вообще ты или бот за тебя играл?', 'Пока команда дралась, он где-то гулял. Найден только в таблице после игры.'] },
+  { test: p => p.pos <= 3 && p.q.farm < .25, tone: 'bad', t: ['Слабый фарм для кора', 'ЛОУ-ФАРМ КОР'],
+    polite: ['Для своей позиции нафармил очень мало.'],
+    toxic: ['Кор с фармом саппорта. ${gpm} GPM, даже пятёрка в шоке.', 'Проиграл линию, проиграл лес, проиграл игру. Руинер с самой линии.'] },
+  { test: p => p.pos >= 4 && p.q.util < .3, tone: 'bad', t: ['Мало помогал команде', 'ПАССАЖИР'],
+    polite: ['Слабо на позиции саппорта: мало лечения, ассистов и вижена.'],
+    toxic: ['Саппорт, который не саппортил. Варды так и остались в магазине.', 'Пятёрка-пассажир: прокатился всю игру и вышел.'] },
+  { test: p => p.q.obj >= .8, tone: 'good', t: ['Давил строения', 'ПУШЕР'],
+    polite: ['Сильно давил на вышки: ${td} урона по строениям.'],
+    toxic: ['Единственный, кто помнил, что игра про трон, а не про KDA.', 'Ломал вышки, пока остальные выясняли, кто кого.'] },
+  { test: p => p.q.fight >= .8, tone: 'good', t: ['Ключевой урон', 'ДАМАГЕР'],
+    polite: ['Один из главных источников урона: ${dmg} по героям.'],
+    toxic: ['Нёс урон как не в себя: ${dmg} по героям. Батя в здании.', 'Дамаг на месте, к нему вопросов нет.'] }
+];
+const FALLBACK = [
+  { max: 22, tone: 'good', t: ['Хорошая игра', 'НОРМ ИГРОК'], polite: ['Стабильно отыграл без явных провалов.'], toxic: ['Не тащил, но и не руинил. Для этой катки уже подвиг.', 'Без вопросов, отыграл.'] },
+  { max: 40, tone: 'neutral', t: ['Средняя игра', 'СЕРЕДНЯК'], polite: ['Есть и плюсы, и минусы, ничего решающего.'], toxic: ['Ни рыба ни мясо.', 'Был в игре. Больше сказать нечего.'] },
+  { max: 999, tone: 'bad', t: ['Слабая игра', 'ЛОУСКИЛЛ'], polite: ['Индекс вины ${blame}: много метрик заметно ниже нормы.'], toxic: ['Индекс вины ${blame}. Тут даже комментировать больно.', 'Такая игра — это не ошибка, это стиль жизни.'] }
+];
+const CULPRIT_ROAST = [
+  'Главный руинер катки. Вытащить было можно, но не с этим хуесосом в пати.',
+  'Руинер сертифицированный. Можно смело кидать репорт.',
+  'Лоускилл года. Команда играла 4 на 6.',
+  'Этот парень купил аккаунт или ему его забустили? Вопрос открытый.'
+];
+function archetype(p) {
+  const seed = (S.match?.match_id || 0) % 997 + p.i;
+  if (!p.won && p === losers()[0]) return { tone: 'bad', title: T('Главный вклад в поражение', 'РУИНЕР'), say: T(fill(pick(ARCH.concat(FALLBACK).find(a => a.test ? a.test(p) : p.blame <= a.max).polite, seed), p), pick(CULPRIT_ROAST, seed)) };
+  const a = ARCH.find(x => x.test(p)) || FALLBACK.find(x => p.blame <= x.max);
+  return { tone: a.tone, title: T(a.t[0], a.t[1]), say: fill(pick(TONE === 'toxic' ? a.toxic : a.polite, seed), p) };
+}
+
 function pct(p, k, all, d) {
   const [bk, get] = METRICS[k];
   const b = p.benchmarks?.[bk];
@@ -278,7 +338,7 @@ function render() {
   app.classList.remove('hidden');
   const parsed = isParsed(m);
   const team = t => S.ps.filter(p => p.team === t);
-  const tabs = [['verdict', 'Вердикт'], ['players', 'Игроки'], ['timeline', 'Ход игры'], ['me', 'Мой разбор']];
+  const tabs = [['verdict', 'Вердикт'], ['all', T('Все 10 игроков', 'Кто рак, кто тащер')], ['players', 'Таблица'], ['timeline', 'Ход игры'], ['me', 'Мой разбор']];
   app.innerHTML = `
   <div class="matchHead card">
     <div class="side rad ${m.radiant_win ? 'win' : ''}"><span class="tname">${esc(teamName(m, 'radiant'))}</span>${m.radiant_win ? '<span class="badge">Победа</span>' : ''}<div class="mini">${team('radiant').map(p => img(heroIcon(p), 'hicon', H(p).name)).join('')}</div></div>
@@ -289,14 +349,14 @@ function render() {
   </div>
   ${parsed ? '' : `<div class="banner"><div><b>Реплей не разобран.</b> Нет графика золота, драк и вардов, поэтому оценка менее точная. Разбор обычно занимает 1–5 минут.</div><button class="primary small" data-act="parse" ${S.parse ? 'disabled' : ''}>${S.parse ? esc(S.parse) : 'Разобрать реплей'}</button></div>`}
   <nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-tab="${k}" class="${S.tab === k ? 'on' : ''}">${l}</button>`).join('')}
-    <span class="grow"></span><button class="ghost small" data-act="copyLink">Ссылка</button><button class="ghost small" data-act="png">Картинка</button></nav>
+    <span class="grow"></span><button class="ghost small tone ${TONE}" data-act="tone" title="Переключить тон текстов">${T('🙂 Культурно', '🤬 Токсик')}</button><button class="ghost small" data-act="copyLink">Ссылка</button><button class="ghost small" data-act="png">Картинка</button></nav>
   <div id="tabBody"></div>`;
   renderTab();
 }
 
 function renderTab() {
   const body = $('#tabBody');
-  body.innerHTML = ({ verdict: verdictTab, players: playersTab, timeline: timelineTab, me: meTab })[S.tab]();
+  body.innerHTML = ({ verdict: verdictTab, all: allTab, players: playersTab, timeline: timelineTab, me: meTab })[S.tab]();
   if (S.tab === 'timeline') bindChart();
 }
 
@@ -305,9 +365,9 @@ function verdictTab() {
   const conf = confidence(top, second), gap = second ? top.blame - second.blame : 0;
   const weak = weakOf(top).slice(0, 3);
   const loseT = top.team, winT = loseT === 'radiant' ? 'dire' : 'radiant';
-  const gapText = !second ? '' : gap >= 12 ? `Отрыв от следующего игрока ${gap} очков, так что вердикт уверенный.`
-    : gap >= 5 ? `Следом идёт ${esc(pname(second))} (${esc(H(second).name)}), разница ${gap} очков. Проиграли скорее вдвоём.`
-      : `Разница со следующим всего ${gap} очков: вина распределена по команде, не вешай всё на одного.`;
+  const gapText = !second ? '' : gap >= 12 ? T(`Отрыв от следующего игрока ${gap} очков, так что вердикт уверенный.`, `Отрыв от следующего ${gap} очков. Руинер без конкурентов, можно репортить.`)
+    : gap >= 5 ? T(`Следом идёт ${esc(pname(second))} (${esc(H(second).name)}), разница ${gap} очков. Проиграли скорее вдвоём.`, `Но и ${esc(pname(second))} на ${esc(H(second).name)} рядом, всего ${gap} очков. Сливали дуэтом.`)
+      : T(`Разница со следующим всего ${gap} очков: вина распределена по команде, не вешай всё на одного.`, `Разница всего ${gap} очков. Тут не один руинер, тут вся пати лоускиллы.`);
   const mvp = W[0];
   const strongEnemy = mvp && avg(Object.values(mvp.q)) > .78 ? `<p class="note">Учти и соперника: ${esc(pname(mvp))} на ${esc(H(mvp).name)} сыграл лучше, чем в ${Math.round(avg(Object.values(mvp.q)) * 100)}% игр по средним метрикам. Часть поражения — просто сильный противник.</p>` : '';
   const lead = leadInfo(loseT);
@@ -316,11 +376,12 @@ function verdictTab() {
     <article class="card culprit">
       <div class="cbg" style="background-image:url('${esc(heroImg(top))}')"></div>
       <div class="ctop">
-        <div class="label red">Главный вклад в поражение</div>
+        <div class="label red">${T('Главный вклад в поражение', 'Руинер катки')}</div>
         <div class="who">${img(heroImg(top), 'hport', H(top).name)}<div><h2>${esc(pname(top))}</h2><div class="sub">${esc(H(top).name)} · ${posLabel(top.pos)} ${rankName(top.rank_tier) ? '· ' + rankName(top.rank_tier) : ''}</div>
           <div class="kda"><b>${top.kills}</b>/<b class="d">${top.deaths}</b>/<b>${top.assists}</b> · ${fmt(top.gold_per_min)} GPM · ${fmt(top.net_worth)} NW</div></div>
           ${ring(top.blame)}</div>
       </div>
+      ${TONE === 'toxic' ? `<p class="roast">«${esc(archetype(top).say)}»</p>` : ''}
       <p class="vtext">Сильнее всего индекс вины подняли: ${weak.length ? weak.map(k => `<b>${FACTORS[k].label.toLowerCase()}</b>`).join(', ') : 'несколько факторов понемногу'}. ${gapText}</p>
       ${lead ? `<p class="note">${lead}</p>` : ''}
       ${strongEnemy}
@@ -332,15 +393,38 @@ function verdictTab() {
       <div class="label">Индекс вины · ${esc(teamName(m, loseT))}</div>
       ${L.map((p, k) => `<button class="rrow ${k === 0 ? 'top' : ''}" data-me="${p.i}">${img(heroIcon(p), 'hicon')}<span class="rname"><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · Pos ${p.pos}</small></span>${stack(p)}<span class="rnum">${p.blame}</span></button>`).join('')}
       ${legend()}
-      <p class="hint">Индекс 0–100: насколько игрок хуже типичной игры на этом герое (по данным OpenDota) с учётом позиции. Позицию можно поправить во вкладке «Игроки».</p>
+      <p class="hint">Индекс 0–100: насколько игрок хуже типичной игры на этом герое (по данным OpenDota) с учётом позиции. Позицию можно поправить во вкладке «Таблица».</p>
     </aside>
   </div>
 
   <div class="grid awards">
-    ${award('good', 'Не вини его', L[L.length - 1], 'Лучший в проигравшей команде')}
-    ${second ? award('warn', 'Тоже постарался', second, 'Второй по индексу вины') : ''}
-    ${award('mvp', 'MVP соперника', mvp, `${esc(teamName(m, winT))}: самая сильная игра`)}
+    ${award('good', T('Не вини его', 'Единственный не рак'), L[L.length - 1], T('Лучший в проигравшей команде', 'Тащил как мог, но с такими тиммейтами без шансов'))}
+    ${second ? award('warn', T('Тоже постарался', 'Соруинер'), second, T('Второй по индексу вины', 'Помогал руинеру сливать')) : ''}
+    ${award('mvp', T('MVP соперника', 'Батя соперников'), mvp, T(`${esc(teamName(m, winT))}: самая сильная игра`, 'Раздал всем и ушёл в закат'))}
   </div>`;
+}
+
+function allTab() {
+  const m = S.match, lt = losers()[0].team;
+  const short = (p, k) => factorInfo(p, k);
+  const card = p => {
+    const a = archetype(p), good = strongOf(p).slice(0, 3), bad = weakOf(p).slice(0, 3);
+    return `<article class="card pcard2 ${a.tone}">
+      <div class="aw">${img(heroImg(p), 'hport sm', H(p).name)}<div><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · ${posLabel(p.pos)}</small></div><span class="bnum ${p.blame >= 45 ? 'hi' : p.blame >= 30 ? 'mid' : 'lo'}">${p.blame}</span></div>
+      <div class="tag ${a.tone}">${esc(a.title)}</div>
+      <p class="say">${esc(a.say)}</p>
+      <div class="kd">${p.kills}/${p.deaths}/${p.assists} · ${fmt(p.gold_per_min)} GPM · ${kfmt(p.hero_damage || 0)} урона · KP ${Math.round(p.kp)}%</div>
+      <div class="pm">
+        ${good.map(k => `<div class="plus"><b>+ ${FACTORS[k].label}</b><span>${esc(short(p, k))}</span></div>`).join('')}
+        ${bad.map(k => `<div class="minus"><b>− ${FACTORS[k].label}</b><span>${esc(short(p, k))}</span></div>`).join('')}
+        ${!good.length && !bad.length ? '<div class="empty">Ровно по всем метрикам</div>' : ''}
+      </div>
+      <button class="ghost small" data-me="${p.i}">Подробнее →</button>
+    </article>`;
+  };
+  const team = t => { const ps = S.ps.filter(p => p.team === t).sort((a, b) => t === lt ? b.blame - a.blame : a.blame - b.blame); const won = ps[0].won;
+    return `<div class="thead2 ${t}"><b>${esc(teamName(m, t))}</b><span class="pill ${won ? 'ok' : 'bad'}">${won ? T('Победа', 'Затащили') : T('Поражение', 'Слили')}</span></div><div class="grid allgrid">${ps.map(card).join('')}</div>`; };
+  return team(lt) + team(lt === 'radiant' ? 'dire' : 'radiant');
 }
 
 function award(tone, title, p, desc) {
@@ -530,7 +614,7 @@ function meTab() {
 /* ---------- шеринг ---------- */
 function shareText() {
   const m = S.match, L = losers(), top = L[0];
-  return `BLAME.GG · матч ${m.match_id} · ${m.radiant_score}:${m.dire_score}\nГлавный вклад в поражение: ${pname(top)} (${H(top).name}), индекс ${top.blame}/100\n${L.map(p => `${p.blame} — ${pname(p)} (${H(p).name})`).join('\n')}\n${location.href}`;
+  return `BLAME.GG · матч ${m.match_id} · ${m.radiant_score}:${m.dire_score}\n${T('Главный вклад в поражение', 'Руинер катки')}: ${pname(top)} (${H(top).name}), индекс ${top.blame}/100\n${L.map(p => `${p.blame} — ${pname(p)} (${H(p).name})`).join('\n')}\n${location.href}`;
 }
 async function copy(text, btn) {
   try { await navigator.clipboard.writeText(text); const o = btn.textContent; btn.textContent = 'Скопировано'; setTimeout(() => btn.textContent = o, 1500); }
@@ -589,6 +673,7 @@ document.addEventListener('click', e => {
   if (act === 'parse') return requestParse();
   if (act === 'copyLink') return copy(shareText(), b);
   if (act === 'png') return exportPng();
+  if (act === 'tone') { TONE = TONE === 'toxic' ? 'polite' : 'toxic'; store.set('blame.tone', TONE); return render(); }
   if (act === 'pickOther') { S.meSlot = null; return renderTab(); }
   if (act === 'saveMe') { store.set('blame.me', +b.dataset.acc); b.textContent = 'Сохранено'; updateMeBtn(); return; }
 });

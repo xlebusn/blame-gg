@@ -285,6 +285,28 @@ select { background: var(--panel2); color: var(--text); border: 1px solid var(--
 .pickP b { font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pickP small { color: var(--muted); font-size: 12px; }
 
+/* tone + all players */
+.tone.toxic { border-color: rgba(255, 77, 94, .5); color: var(--accent); }
+.roast { font: 600 18px/1.4 var(--display); color: var(--accent); margin: 18px 0 0; }
+.allgrid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); margin-top: 10px; }
+.thead2 { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
+.thead2 b { font: 700 18px var(--display); }
+.thead2.radiant b { color: var(--rad); } .thead2.dire b { color: var(--dire); }
+.pcard2 { display: flex; flex-direction: column; gap: 10px; border-top: 3px solid var(--line); }
+.pcard2.good { border-top-color: var(--rad); } .pcard2.bad { border-top-color: var(--accent); } .pcard2.neutral { border-top-color: var(--gold); }
+.pcard2 .ghost { align-self: flex-start; margin-top: auto; }
+.tag { align-self: flex-start; font: 800 13px var(--display); letter-spacing: .04em; padding: 5px 10px; border-radius: 8px; }
+.tag.good { background: rgba(61, 220, 151, .12); color: var(--rad); }
+.tag.bad { background: rgba(255, 77, 94, .14); color: var(--accent); }
+.tag.neutral { background: rgba(245, 185, 66, .12); color: var(--gold); }
+.say { margin: 0; font-size: 15px; color: #d5dbe5; }
+.pcard2 .kd { color: var(--dim); font-size: 12px; }
+.pm { display: flex; flex-direction: column; gap: 6px; }
+.pm > div { background: var(--panel2); border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+.pm b { display: block; font-size: 13px; }
+.pm span { color: var(--muted); }
+.plus b { color: var(--rad); } .minus b { color: var(--accent); }
+
 /* mobile */
 @media (max-width: 900px) {
   .vgrid, .megrid, .awards { grid-template-columns: 1fr; }
