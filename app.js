@@ -282,7 +282,7 @@ function analyze() {
     });
   }
   ps.forEach(p => score(p, ps, d));
-  S.ps = ps; S.arch = {}; S.usedSays = new Set();
+  S.ps = ps; S.arch = {}; S.usedSays = new Set(); S.lines = {}; S.usedTpl = {};
 }
 
 const losers = () => S.ps.filter(p => !p.won).sort((a, b) => b.blame - a.blame);
@@ -294,21 +294,101 @@ function confidence(top, second) {
   return Math.round(clamp(40 + Math.min(25, gap * 1.6) + (top.benchSrc === 'hero' ? 12 : 0) + (isParsed(S.match) ? 10 : 0) + (top.posSrc === 'линия' || S.override[top.i] ? 6 : 0), 30, 95));
 }
 
+// Формулировки плюсов и минусов: [фактор][bad|good][polite|toxic] → варианты.
+// Переменные: low — в нижних N% игр, top — в топ-N%, worse — хуже, чем в N% игр, every — смерть раз в N минут.
+const LINES = {
+  farm: {
+    bad: {
+      polite: ['${gpm} GPM и ${lh} добиваний: это нижние ${low}% ${src}.', 'Фарм отстал: в ${worse}% ${src} золота больше, чем ${gpm} GPM.', '${lhpm} добивания в минуту, мало для ${posGen}. Предметы пришли поздно.'],
+      toxic: ['${gpm} GPM. Крипы спокойно доживали до старости.', '${lh} добиваний за ${min} минут. Крипы в безопасности, пока он на линии.', 'Фарм уровня нижних ${low}% ${src}. Лес даже не знает его в лицо.']
+    },
+    good: {
+      polite: ['${gpm} GPM: топ ${top}% ${src}.', 'Отличный фарм: ${lh} добиваний, ${nw} нетворса.', 'Быстро набрал золото: ${lhpm} добивания в минуту.',
+        'Экономика в порядке: ${nw} нетворса к концу игры.', 'Фарм выше нормы: лучше, чем в ${better}% ${src}.'],
+      toxic: ['${gpm} GPM, топ ${top}% ${src}. Крипы его боятся.', '${lh} крипов. Фарм-машина, без выходных.', '${nw} нетворса. Карманы трещат.',
+        'Фармил так, что лес приходилось респавнить вне очереди.', '${lhpm} крипа в минуту. Руки помнят ласт-хит.', '${gpm} GPM. Золото к нему липло само.']
+    }
+  },
+  xp: {
+    bad: {
+      polite: ['${xpm} XPM, к концу ${level} уровень: отставал по уровням.', 'Мало опыта: в ${worse}% ${src} качаются быстрее.', '${level} уровень за ${min} минут. Скиллы и таланты пришли с опозданием.'],
+      toxic: ['${level} уровень к концу игры. Скиллы прокачаны наполовину, как и игра.', '${xpm} XPM. Опыт обходил его стороной.', 'Качался медленнее, чем в ${worse}% ${src}. Таверна — плохой тренер.']
+    },
+    good: {
+      polite: ['${xpm} XPM: опережал соперников по уровням.', '${level} уровень, топ ${top}% по опыту среди ${src}.', 'Быстро качался: ключевые уровни раньше врагов.'],
+      toxic: ['${level} уровень. Качался как на сервере с x2.', '${xpm} XPM. Опыт прилипал сам.', 'Топ ${top}% по опыту. Рано апнул всё, что можно.']
+    }
+  },
+  fight: {
+    bad: {
+      polite: ['${dmg} урона (${share}% команды) и участие в ${kp}% убийств: мало для ${posGen}.', 'В драках был слабо заметен: всего ${share}% урона команды.', 'Участвовал только в ${kp}% убийств команды.'],
+      toxic: ['${share}% урона команды. Тыкал врагов, как будто боялся сделать больно.', 'Участвовал в ${kp}% убийств. Остальные ${kpRest}% смотрел со стороны.', '${dmg} урона за ${min} минут. Крипы на линии наносят больше.',
+        'В драках был как декорация: красиво стоял, ничего не делал.', '${share}% урона. Бил врагов перьями.', 'Прожимал кнопки куда угодно, только не во врагов.']
+    },
+    good: {
+      polite: ['${dmg} урона (${share}% команды), участие в ${kp}% убийств.', 'Главный источник урона: ${share}% от всей команды.', 'Был почти в каждой драке: ${kp}% участия в убийствах.'],
+      toxic: ['${share}% урона команды. Кнопки жал по делу.', '${dmg} урона. Враги до сих пор прикладывают лёд.', '${kp}% участия в убийствах. Без него не начиналась ни одна драка.']
+    }
+  },
+  deaths: {
+    bad: {
+      polite: ['${deaths} смертей: чаще, чем в ${worse}% ${src}.', 'Умирал примерно раз в ${every} минуты, это дорого для ${posGen}.', '${deaths} смертей: каждая отдавала врагу золото и время.'],
+      toxic: ['${deaths} смертей, раз в ${every} мин. Таймер респавна знает его лучше мамы.', 'Умирал чаще, чем в ${worse}% ${src}. Талант.', '${deaths} раз отлетел. Серый экран видел чаще, чем карту.',
+        '${deaths} смертей. Байбек — для слабаков, у него таверна по подписке.', 'Ходил в лес без варда и с верой в лучшее. ${deaths} раз не повезло.', 'Умирал раз в ${every} минуты. Стабильность — признак мастерства.']
+    },
+    good: {
+      polite: ['Всего ${deaths} смертей: топ ${top}% по выживаемости среди ${src}.', 'Аккуратная позиционка: ${deaths} смертей за ${min} минут.', 'Почти не давал врагу золота за себя: ${deaths} смертей.'],
+      toxic: ['${deaths} смертей. Скользкий, как угорь.', 'Умер всего ${deaths} раз. Враги его ловили и не поймали.', 'Топ ${top}% по выживаемости. Знает, где кнопка «назад».']
+    }
+  },
+  obj: {
+    bad: {
+      polite: ['${td} урона по строениям: давления на карту почти не было.', 'Мало урона по вышкам: в ${worse}% ${src} больше.', 'Строения почти не трогал, а игра заканчивается на троне.'],
+      toxic: ['${td} урона по вышкам. Вышки о нём даже не слышали.', 'Вышки обходил стороной. Видимо, уважал архитектуру.', 'Строения? Не, не слышал. ${td} урона за игру.']
+    },
+    good: {
+      polite: ['${td} урона по строениям: топ ${top}% ${src}.', 'Сильное давление на карту: ${td} по вышкам.', 'Превращал выигранные драки в снесённые строения.'],
+      toxic: ['${td} по вышкам. Строитель наоборот.', 'Вышки ненавидят этого человека: ${td} урона.', 'Пока все гонялись за KDA, он сносил базу.']
+    }
+  },
+  util: {
+    bad: {
+      polite: ['Мало помощи команде: ${assists} ассистов, ${heal} лечения${obsPart}.', 'Для ${posGen} слабо: мало ассистов, лечения и вижена.', 'Команда почти не чувствовала поддержки: ${assists} ассистов за игру.'],
+      toxic: ['${assists} ассистов${obsPart}. Карта тёмная, как его будущее в этой игре.', 'Поддержка уровня «держитесь там».', 'Помогал команде примерно как мебель: ${assists} ассистов.']
+    },
+    good: {
+      polite: ['${assists} ассистов, ${heal} лечения${obsPart}.', 'Сильная помощь команде: в ${kp}% убийств есть его вклад.', 'Держал команду живой и с виженом.',
+        'Много ассистов (${assists}): был рядом почти в каждой драке.', 'Хорошая командная игра: участие в ${kp}% убийств.'],
+      toxic: ['${assists} ассистов. Мама команды.', 'Сейвил, хилил, светил карту. Святой человек.', 'Без него команда бы ходила в темноте и без хп.',
+        'В ${kp}% убийств засветился. Везде успел, всем помог.', '${assists} ассистов. Раздавал килы, как конфеты на Новый год.', 'Командный игрок, редкий вид в пабе.']
+    }
+  }
+};
+const POS_GEN = { 1: 'керри', 2: 'мида', 3: 'оффлейнера', 4: 'четвёрки', 5: 'пятёрки' };
+const KEYS = Object.keys(FACTORS);
+
 function factorInfo(p, k) {
-  const d = Math.max(1, (S.match.duration || 60) / 60);
-  const src = p.benchSrc === 'hero' ? `игр на ${H(p).name}` : 'игроков этого матча';
-  const worse = x => `хуже, чем в ${Math.round((1 - x) * 100)}% ${src}`;
-  const better = x => `лучше, чем в ${Math.round(x * 100)}% ${src}`;
-  const cmp = (x, comp) => comp ? `оценка ${Math.round(x * 100)}/100` : (x < .5 ? worse(x) : better(x));
-  const q = p.q[k];
-  return {
-    farm: `${fmt(p.gold_per_min)} GPM и ${fmt(p.last_hits)} добиваний: ${cmp(q)}`,
-    xp: `${fmt(p.xp_per_min)} XPM, ${p.level || '?'} уровень: ${cmp(q)}`,
-    fight: `${fmt(p.hero_damage)} урона (${p.dmgShare.toFixed(0)}% команды), участие в убийствах ${p.kp.toFixed(0)}%: ${cmp(q, 1)}`,
-    deaths: `${p.deaths || 0} смертей (${((p.deaths || 0) / d).toFixed(2)} в минуту): ${cmp(q)}`,
-    obj: `${fmt(p.tower_damage)} урона по строениям: ${cmp(q)}`,
-    util: `${fmt(p.hero_healing)} лечения, ${p.assists || 0} ассистов${p.obs_placed != null ? `, ${p.obs_placed} обсов` : ''}: ${cmp(q, 1)}`
-  }[k];
+  const d = Math.max(1, (S.match.duration || 60) / 60), q = p.q[k], dir = q < .5 ? 'bad' : 'good';
+  const vars = {
+    gpm: fmt(p.gold_per_min), xpm: fmt(p.xp_per_min), lh: fmt(p.last_hits), nw: fmt(p.net_worth), level: p.level || '?',
+    dmg: fmt(p.hero_damage), share: Math.round(p.dmgShare), kp: Math.round(p.kp), kpRest: 100 - Math.round(p.kp),
+    deaths: p.deaths || 0, assists: p.assists || 0, heal: fmt(p.hero_healing), td: fmt(p.tower_damage),
+    obsPart: p.obs_placed != null ? `, ${p.obs_placed} обсов` : '',
+    lhpm: ((p.last_hits || 0) / d).toFixed(1).replace('.', ','), min: Math.round(d), every: ((d / Math.max(1, p.deaths || 0))).toFixed(1).replace('.', ','),
+    better: Math.round(q * 100), low: Math.max(1, Math.round(q * 100)), top: Math.max(1, Math.round((1 - q) * 100)), worse: Math.round((1 - q) * 100),
+    src: p.benchSrc === 'hero' ? `игр на ${H(p).name}` : 'игроков матча', posGen: POS_GEN[p.pos]
+  };
+  // Кэш, чтобы на разных вкладках у игрока был один и тот же текст; внутри матча шаблон не повторяется, пока пул не кончится.
+  const key = TONE + p.i + k; if (S.lines?.[key]) return S.lines[key];
+  const pool = LINES[k][dir][TONE === 'toxic' ? 'toxic' : 'polite'];
+  const seed = (S.match?.match_id || 0) % 991 + p.i;
+  S.lines ||= {}; S.usedTpl ||= {};
+  const used = S.usedTpl[TONE + k + dir] ||= new Set();
+  let tpl = null;
+  for (let j = 0; j < pool.length && !tpl; j++) if (!used.has(pick(pool, seed + j))) tpl = pick(pool, seed + j);
+  if (!tpl) { used.clear(); tpl = pick(pool, seed); }
+  used.add(tpl);
+  return (S.lines[key] = tpl.replace(/\$\{(\w+)\}/g, (_, v) => vars[v] ?? ''));
 }
 const weakOf = p => Object.keys(p.parts).filter(k => WEIGHTS[p.pos][k] >= .08 && p.q[k] < .5).sort((a, b) => p.parts[b] - p.parts[a]);
 const strongOf = p => Object.keys(p.q).filter(k => WEIGHTS[p.pos][k] >= .1 && p.q[k] >= .7).sort((a, b) => p.q[b] - p.q[a]);
@@ -454,7 +534,7 @@ function verdictTab() {
           ${ring(top.blame)}</div>
       </div>
       ${TONE === 'toxic' ? `<p class="roast">«${esc(archetype(top).say)}»</p>` : ''}
-      <p class="vtext">Сильнее всего индекс вины подняли: ${weak.length ? weak.map(k => `<b>${FACTORS[k].label.toLowerCase()}</b>`).join(', ') : 'несколько факторов понемногу'}. ${gapText}</p>
+      <p class="vtext">${verdictLead(top, weak)} ${gapText}</p>
       ${lead ? `<p class="note">${lead}</p>` : ''}
       ${strongEnemy}
       <div class="reasons">${weak.map(k => `<div class="reason"><i style="background:${FACTORS[k].color}"></i><div><b>${FACTORS[k].label}</b><span>${esc(factorInfo(top, k))}</span></div><em>+${top.parts[k].toFixed(0)}</em></div>`).join('') || '<div class="empty">Явных провалов нет: индекс собран из мелких сигналов.</div>'}</div>
@@ -497,6 +577,17 @@ function allTab() {
   const team = t => { const ps = S.ps.filter(p => p.team === t).sort((a, b) => t === lt ? b.blame - a.blame : a.blame - b.blame); const won = ps[0].won;
     return `<div class="thead2 ${t}"><b>${esc(teamName(m, t))}</b><span class="pill ${won ? 'ok' : 'bad'}">${won ? T('Победа', 'Затащили') : T('Поражение', 'Слили')}</span></div><div class="grid allgrid">${ps.map(card).join('')}</div>`; };
   return team(lt) + team(lt === 'radiant' ? 'dire' : 'radiant');
+}
+
+function verdictLead(p, weak) {
+  const list = weak.length ? weak.map(k => `<b>${FACTORS[k].label.toLowerCase()}</b>`).join(', ') : '';
+  const seed = (S.match?.match_id || 0) % 991;
+  if (!list) return T('Явного провала нет: индекс собран из мелких недочётов по всем фронтам.', 'Провалился понемногу во всём сразу. Универсальный солдат руина.');
+  return pick(TONE === 'toxic' ? [
+    `Слил на ровном месте: ${list}.`, `Где всё пошло не так: ${list}.`, `Список претензий открывают ${list}.`, `Тиммейты будут вспоминать: ${list}.`
+  ] : [
+    `Сильнее всего индекс вины подняли: ${list}.`, `Основные проблемы игры: ${list}.`, `Больше всего очков вины набежало за ${list}.`, `Ключевые провалы: ${list}.`
+  ], seed);
 }
 
 function award(tone, title, p, desc) {
@@ -658,6 +749,16 @@ function radar(p) {
   </svg>`;
 }
 
+function myPlace(p, place, n) {
+  const seed = (S.match?.match_id || 0) % 991 + p.i;
+  if (place === 1 && !p.won) return pick(T(['В этом матче у тебя самый высокий индекс вины в команде.', 'По модели ты главный в списке виноватых. Ниже разбор, что пошло не так.'],
+    ['Ну что, руинер, давай разбираться.', 'Поздравляем, ты руинер этой катки. Ниже — за что.', 'Главный виновник найден, и это ты. Не плачь, читай ниже.']), seed);
+  if (place === n) return pick(T(['У тебя самый низкий индекс вины в команде.', 'Ты сыграл лучше всех в своей команде.'],
+    ['Ты лучший в своей пати. Планка, правда, низкая.', 'Самый невиноватый. Можно смело флеймить в чате.']), seed);
+  const base = T(`Ты на ${place}-м месте из ${n} по индексу вины в команде.`, `${place}-й из ${n} по вине. Не руинер, но и не герой.`);
+  return base + (p.won ? T(' Победа не отменяет ошибок, ниже то, что стоит подтянуть.', ' Выиграли, но есть над чем поработать.') : '');
+}
+
 function meTab() {
   if (S.meSlot == null) {
     const team = t => S.ps.filter(p => p.team === t);
@@ -671,7 +772,7 @@ function meTab() {
     <article class="card mecard">
       <div class="who">${img(heroImg(p), 'hport', H(p).name)}<div><div class="label ${p.won ? 'green' : 'red'}">${p.won ? 'Победа' : 'Поражение'}</div><h2>${esc(pname(p))}</h2><div class="sub">${esc(H(p).name)} · ${posLabel(p.pos)}</div>
       <div class="kda"><b>${p.kills}</b>/<b class="d">${p.deaths}</b>/<b>${p.assists}</b> · ${fmt(p.gold_per_min)} GPM · ${fmt(p.xp_per_min)} XPM</div></div>${ring(p.blame)}</div>
-      <p class="vtext">${place === 1 && !p.won ? 'В этом матче у тебя самый высокий индекс вины в команде.' : `Ты на ${place}-м месте из ${mates.length} по индексу вины в своей команде.`} ${p.won ? 'Победа не отменяет ошибок, ниже то, что стоит подтянуть.' : ''}</p>
+      <p class="vtext">${myPlace(p, place, mates.length)}</p>
       ${radar(p)}
       <div class="legend center"><span><i style="background:var(--accent)"></i>Ты</span><span><i class="dash"></i>Типичная игра на герое</span></div>
       <div class="cfoot"><button class="ghost small" data-act="pickOther">Выбрать другого игрока</button>${p.account_id && p.account_id !== myId ? `<button class="ghost small" data-act="saveMe" data-acc="${p.account_id}">Запомнить, это мой аккаунт</button>` : p.account_id ? '<span class="hint">Это твой сохранённый аккаунт</span>' : ''}</div>
