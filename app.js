@@ -283,14 +283,16 @@ function analyze() {
   }
   ps.forEach(p => score(p, ps, d));
   S.ps = ps; S.arch = {}; S.usedSays = new Set(); S.lines = {}; S.usedTpl = {};
+  ps.forEach(p => { p.sections = []; p.final = p.blame; });
+  if (typeof applyStory === 'function') applyStory();
 }
 
-const losers = () => S.ps.filter(p => !p.won).sort((a, b) => b.blame - a.blame);
+const losers = () => S.ps.filter(p => !p.won).sort((a, b) => b.final - a.final || b.blame - a.blame);
 const winners = () => S.ps.filter(p => p.won).sort((a, b) => a.blame - b.blame);
 const isParsed = m => !!(m.od_data?.has_parsed || m.radiant_gold_adv?.length);
 
 function confidence(top, second) {
-  const gap = second ? top.blame - second.blame : 20;
+  const gap = second ? top.final - second.final : 20;
   return Math.round(clamp(40 + Math.min(25, gap * 1.6) + (top.benchSrc === 'hero' ? 12 : 0) + (isParsed(S.match) ? 10 : 0) + (top.posSrc === 'линия' || S.override[top.i] ? 6 : 0), 30, 95));
 }
 
@@ -515,7 +517,7 @@ function renderTab() {
 
 function verdictTab() {
   const m = S.match, L = losers(), W = winners(), top = L[0], second = L[1];
-  const conf = confidence(top, second), gap = second ? top.blame - second.blame : 0;
+  const conf = confidence(top, second), gap = second ? top.final - second.final : 0;
   const weak = weakOf(top).slice(0, 3);
   const loseT = top.team, winT = loseT === 'radiant' ? 'dire' : 'radiant';
   const gapText = !second ? '' : gap >= 12 ? T(`Отрыв от следующего игрока ${gap} очков, так что вердикт уверенный.`, `Отрыв от следующего ${gap} очков. Руинер без конкурентов, можно репортить.`)
@@ -536,6 +538,7 @@ function verdictTab() {
       </div>
       ${TONE === 'toxic' ? `<p class="roast">«${esc(archetype(top).say)}»</p>` : ''}
       <p class="vtext">${verdictLead(top, weak)} ${gapText}</p>
+      ${top.sections.length ? `<p class="note">${T('Подтверждается разбором матча', 'И это не только цифры')}: ${top.sections.map(x => `<b>${esc(x.toLowerCase())}</b>`).join(', ')}. <button class="linkbtn" data-tab="story">Как слили →</button></p>` : ''}
       ${lead ? `<p class="note">${lead}</p>` : ''}
       ${strongEnemy}
       <div class="reasons">${weak.map(k => `<div class="reason"><i style="background:${FACTORS[k].color}"></i><div><b>${FACTORS[k].label}</b><span>${esc(factorInfo(top, k))}</span></div><em>+${top.parts[k].toFixed(0)}</em></div>`).join('') || '<div class="empty">Явных провалов нет: индекс собран из мелких сигналов.</div>'}</div>
@@ -544,9 +547,9 @@ function verdictTab() {
 
     <aside class="card ranking">
       <div class="label">Индекс вины · ${esc(teamName(m, loseT))}</div>
-      ${L.map((p, k) => `<button class="rrow ${k === 0 ? 'top' : ''}" data-me="${p.i}">${img(heroIcon(p), 'hicon')}<span class="rname"><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · Pos ${p.pos}</small></span>${stack(p)}<span class="rnum">${p.blame}</span></button>`).join('')}
+      ${L.map((p, k) => `<button class="rrow ${k === 0 ? 'top' : ''}" data-me="${p.i}">${img(heroIcon(p), 'hicon')}<span class="rname"><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · Pos ${p.pos}</small></span>${stack(p)}<span class="rnum">${p.blame}${p.sections.length ? `<small class="sec" title="Антирекорды в «Как слили»: ${esc(p.sections.join(', '))}">+${p.sections.length}</small>` : ''}</span></button>`).join('')}
       ${legend()}
-      <p class="hint">Индекс 0–100: насколько игрок хуже типичной игры на этом герое (по данным OpenDota) с учётом позиции. Позицию можно поправить во вкладке «Таблица».</p>
+      <p class="hint">Индекс 0–100: насколько игрок хуже типичной игры на этом герое (по данным OpenDota) с учётом позиции. «+N» — сколько антирекордов у игрока во вкладке «Как слили»: они тоже двигают его вверх в списке. Позицию можно поправить во вкладке «Таблица».</p>
     </aside>
   </div>
 
@@ -575,7 +578,7 @@ function allTab() {
       <button class="ghost small" data-me="${p.i}">Подробнее →</button>
     </article>`;
   };
-  const team = t => { const ps = S.ps.filter(p => p.team === t).sort((a, b) => t === lt ? b.blame - a.blame : a.blame - b.blame); const won = ps[0].won;
+  const team = t => { const ps = S.ps.filter(p => p.team === t).sort((a, b) => t === lt ? b.final - a.final : a.blame - b.blame); const won = ps[0].won;
     return `<div class="thead2 ${t}"><b>${esc(teamName(m, t))}</b><span class="pill ${won ? 'ok' : 'bad'}">${won ? T('Победа', 'Затащили') : T('Поражение', 'Слили')}</span></div><div class="grid allgrid">${ps.map(card).join('')}</div>`; };
   return team(lt) + team(lt === 'radiant' ? 'dire' : 'radiant');
 }
@@ -648,9 +651,9 @@ function objectivesOf(m) {
   return (m.objectives || []).map(o => {
     if (o.type === 'building_kill' && o.key) {
       const rad = o.key.includes('goodguys'), what = o.key.includes('rax') ? 'барак' : o.key.includes('fort') ? 'трон' : 'башню';
-      return { t: o.time, kind: 'b', by: rad ? 'dire' : 'radiant', text: `${rad ? 'Тьма' : 'Свет'} снесли ${what}` };
+      return { t: o.time, kind: 'b', by: rad ? 'dire' : 'radiant', text: `${rad ? 'Тьма снесла' : 'Свет снёс'} ${what}` };
     }
-    if (o.type === 'CHAT_MESSAGE_ROSHAN_KILL') return { t: o.time, kind: 'r', by: o.team === 2 ? 'radiant' : 'dire', text: `${o.team === 2 ? 'Свет' : 'Тьма'} убили Рошана` };
+    if (o.type === 'CHAT_MESSAGE_ROSHAN_KILL') return { t: o.time, kind: 'r', by: o.team === 2 ? 'radiant' : 'dire', text: `${o.team === 2 ? 'Свет убил' : 'Тьма убила'} Рошана` };
     if (o.type === 'CHAT_MESSAGE_FIRSTBLOOD') { const p = S.ps.find(x => x.player_slot === o.player_slot); return { t: o.time, kind: 'f', by: p?.team, text: `Первая кровь: ${p ? H(p).name : ''}` }; }
     return null;
   }).filter(Boolean);

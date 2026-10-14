@@ -314,6 +314,10 @@ select { background: var(--panel2); color: var(--text); border: 1px solid var(--
 .htag b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
 .htag small { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .htag.bad b { color: var(--accent); }
+.htag { overflow: hidden; }
+.rnum .sec { display: block; font: 600 11px Inter; color: var(--accent); }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--accent); font-weight: 600; }
+.linkbtn:hover { text-decoration: underline; }
 .cnt { font-style: normal; color: var(--muted); font-size: 12px; margin: 0 10px 0 4px; }
 .sub3 { font: 700 13px Inter; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
 #tabBody > .card { margin-top: 16px; }
@@ -383,8 +387,11 @@ select { background: var(--panel2); color: var(--text); border: 1px solid var(--
   .vgrid, .megrid, .awards { grid-template-columns: 1fr; }
   .pickGrid { grid-template-columns: repeat(3, 1fr); }
   .phases, .twoCol, .turnGrid { grid-template-columns: 1fr; }
-  .duel { grid-template-columns: minmax(0, 1fr) 60px minmax(0, 1fr); grid-template-areas: "pos pos tag" "a bar b" "f f f"; }
+  .duel { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "pos tag" "a a" "bar bar" "b b" "f f"; }
   .duel .tag { justify-self: end; }
+  .dside.r { justify-content: flex-start; }
+  .dside .htag, .dside.r .htag { max-width: 100%; }
+  .roast { font-size: 15px; }
   .tbanner { grid-template-columns: 1fr; gap: 6px; }
 }
 @media (max-width: 640px) {

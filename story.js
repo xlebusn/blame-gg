@@ -2,7 +2,7 @@
 /* «Как слили»: разбор матча по моментам, линиям, дракам, драфту, сборке, Рошану и байбекам.
    Почти всё требует разобранного реплея (kills_log, gold_t, purchase_log, teamfights). */
 
-const loseTeam = () => losers()[0].team;
+const loseTeam = () => S.match.radiant_win ? 'dire' : 'radiant';
 const winTeam = () => loseTeam() === 'radiant' ? 'dire' : 'radiant';
 const teamOf = t => S.ps.filter(p => p.team === t);
 const byPos = t => Object.fromEntries(teamOf(t).map(p => [p.pos, p]));
@@ -73,7 +73,7 @@ function turnCard() {
     <div class="label red">${T('Смерть, которая стоила игры', 'Смерть, которая стоила игры')}</div>
     <div class="turnHead"><div class="big">${mmss(tp.t0)}–${mmss(tp.t1)}</div><div><b>${sgn(tp.drop)}</b> ${T('золота за', 'золота слили за')} ${Math.round((tp.t1 - tp.t0) / 60)} мин<small>было ${sgn(tp.from)} → стало ${sgn(tp.to)}${tp.maxLead >= 2000 ? ` · максимум за игру ${sgn(tp.maxLead)}` : ''}</small></div></div>
     ${k ? `<div class="keyDeath">${img(heroImg(k.victim), 'hport sm', H(k.victim).name)}<div><b>${mmss(k.t)} — ${esc(pname(k.victim))} (${esc(H(k.victim).name)})</b>
-      <span>${T('Погиб первым', 'Отлетел первым')}, убил ${esc(H(k.killer).name)}. ${tp.bb ? T('Выкупился.', 'Выкупился, но не помогло.') : k.t >= 1500 ? T('Без байбека.', 'Байбека не было.') : ''} За 2 минуты после этого ${sgn(tp.keySwing)} золота.</span></div></div>` : ''}
+      <span>${T('Погиб первым', 'Отлетел первым')}, его убил ${esc(H(k.killer).name)}. ${tp.bb ? T('Выкупился.', 'Выкупился, но не помогло.') : k.t >= 1500 ? T('Без байбека.', 'Байбека не было.') : ''} За 2 минуты после этого ${sgn(tp.keySwing)} золота.</span></div></div>` : ''}
     <div class="turnGrid">
       <div><small>${T('Умерли в этот отрезок', 'Кто отлетал')}</small><div class="tags">${deadList || '—'}</div></div>
       <div><small>${T('Что потеряли', 'Что отдали')}</small>${lostObj ? `<ul class="olist">${lostObj}</ul>` : '<div class="empty">Строения не потеряли</div>'}</div>
@@ -234,7 +234,7 @@ async function fillDraft() {
     if (!known.length) { box.innerHTML = '<div class="empty">Недостаточно статистики по матчапам.</div>'; return; }
     const w = known[0], teamWr = avg(known.map(r => r.avg));
     box.innerHTML = `<p class="vtext">${teamWr < .48 ? T(`Драф был против нас: средний винрейт пиков против этих врагов ${Math.round(teamWr * 100)}%.`, `Проиграли ещё на драфте: ${Math.round(teamWr * 100)}% винрейта против этого пика.`) : teamWr > .52 ? T(`По драфту были в плюсе (${Math.round(teamWr * 100)}%), так что проиграли не на пиках.`, `Драфт был за нас (${Math.round(teamWr * 100)}%). Пикнули нормально, сыграли — как сыграли.`) : T('Драфт примерно равный.', 'Драфт ровный, на пики не свалишь.')}
-      ${w.avg < .48 ? ` ${T('Хуже всего заходил', 'Руинер драфта')}: <b>${esc(H(w.p).name)}</b> (${esc(pname(w.p))}) — ${Math.round(w.avg * 100)}% против этого пика${w.worst ? `, особенно против ${esc(H(w.worst.e).name)} (${Math.round(w.worst.wr * 100)}%)` : ''}.` : ''}
+      ${w.avg < .48 ? ` ${teamWr < .48 ? T('Хуже всего заходил', 'Руинер драфта') : T('Слабее остальных заходил', 'Но и тут есть слабое звено')}: <b>${esc(H(w.p).name)}</b> (${esc(pname(w.p))}) — ${Math.round(w.avg * 100)}% против этого пика${w.worst ? `, особенно против ${esc(H(w.worst.e).name)} (${Math.round(w.worst.wr * 100)}%)` : ''}.` : ''}
       ${counter && counter.wr > .53 ? ` ${T('Главный контрпик соперника', 'Главная проблема в пике врага')}: <b>${esc(H(counter.e).name)}</b>, ${Math.round(counter.wr * 100)}% против наших героев.` : ''}</p>
       <div class="draft">${known.map(r => `<div class="drow">${heroTag(r.p)}<div class="dwr"><i style="width:${r.avg * 100}%" class="${r.avg < .48 ? 'r' : r.avg > .52 ? 'g' : ''}"></i></div><b>${Math.round(r.avg * 100)}%</b></div>`).join('')}</div>
       <p class="hint">Винрейт героя против каждого из пяти врагов по статистике OpenDota (учитываются пары от 10 игр).</p>`;
@@ -249,7 +249,7 @@ const ITEM_NORM = {
   octarine_core: 30, refresher: 36, guardian_greaves: 24, vladmir: 16, solar_crest: 20, spirit_vessel: 16, pavise: 15, aether_lens: 14,
   rod_of_atos: 16, eternal_shroud: 28, disperser: 28, gungir: 28, abyssal_blade: 34, monkey_king_bar: 30, greater_crit: 30
 };
-const SAVE_ITEMS = ['glimmer_cape', 'force_staff', 'ghost', 'lotus_orb', 'solar_crest', 'pavise', 'guardian_greaves', 'aeon_disk', 'eul', 'cyclone', 'wind_waker', 'holy_locket', 'boots_of_bearing'];
+const SAVE_ITEMS = ['glimmer_cape', 'force_staff', 'ghost', 'lotus_orb', 'solar_crest', 'pavise', 'guardian_greaves', 'aeon_disk', 'cyclone', 'wind_waker', 'holy_locket', 'boots_of_bearing'];
 const iname = k => S.items[k]?.dname || k;
 function itemIssues() {
   const L = loseTeam(), dmin = (S.match.duration || 0) / 60;
@@ -264,8 +264,8 @@ function itemIssues() {
     }
     if (p.pos <= 2 && !has('black_king_bar') && dmin >= 32 && (p.deaths || 0) >= 7) iss.push({ sev: 2, text: T(`Нет BKB за ${Math.round(dmin)} минут при ${p.deaths} смертях.`, `${Math.round(dmin)} минут без BKB и ${p.deaths} смертей. Контроль врага сказал спасибо.`) });
     if (p.pos >= 4 && p.purchase) {
-      if (!p.purchase.ward_observer) iss.push({ sev: 2.5, text: T('Не купил ни одного обса.', 'Саппорт без единого обса. Карту светила, видимо, интуиция.') });
-      if (!p.purchase.ward_sentry && dmin > 25) iss.push({ sev: 1, text: T('Ни одного сентри за игру.', 'Ни одного сентри. Вражеские варды живут долго и счастливо.') });
+      if (!(p.obs_placed ?? p.purchase.ward_observer)) iss.push({ sev: 2.5, text: T('Не купил ни одного обса.', 'Саппорт без единого обса. Карту светила, видимо, интуиция.') });
+      if (!(p.sen_placed ?? p.purchase.ward_sentry) && dmin > 25) iss.push({ sev: 1, text: T('Ни одного сентри за игру.', 'Ни одного сентри. Вражеские варды живут долго и счастливо.') });
       if (dmin >= 35 && !SAVE_ITEMS.some(has)) iss.push({ sev: 1.5, text: T('Ни одного сейв-предмета за длинную игру.', `${Math.round(dmin)} минут и ни одного сейв-предмета. Спасал команду только морально.`) });
     }
     if (first.hand_of_midas != null && first.hand_of_midas / 60 > 15) iss.push({ sev: 1, text: T(`Мидас на ${Math.round(first.hand_of_midas / 60)}-й минуте: поздно, он уже не окупится.`, `Мидас на ${Math.round(first.hand_of_midas / 60)}-й. Инвестиция в будущее, которого не было.`) });
@@ -334,13 +334,21 @@ function ruinerSummary() {
     const rb = roshBuyback().ruiner; if (rb) rows.push(['Рошан и байбеки', rb]);
   }
   if (worst && worst.sc <= -.6) rows.push(['Дуэль', worst.x]);
-  const tally = {}; rows.forEach(([, p]) => { tally[p.i] = (tally[p.i] || 0) + 1; });
-  const king = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
-  return { rows, king: king && king[1] >= 2 ? { p: S.ps.find(p => p.i === +king[0]), n: king[1] } : null };
+  return { rows };
+}
+
+// Раздел → игрок; вызывается из analyze() и записывает антирекорды в p.sections / p.final.
+function applyStory() {
+  if (!isParsed(S.match)) return;
+  try {
+    ruinerSummary().rows.forEach(([what, p]) => { p.sections.push(what); });
+    S.ps.forEach(p => { p.final = p.blame + 6 * p.sections.length; });
+  } catch (e) { console.warn('story', e); }
 }
 
 function storyTab() {
-  const parsed = isParsed(S.match), { rows, king } = ruinerSummary();
+  const parsed = isParsed(S.match), { rows } = ruinerSummary(), top = losers()[0];
+  const king = top.sections.length >= 2 ? { p: top, n: top.sections.length } : null;
   const summary = `<section class="card summary"><div class="label red">${T('Кто руинил по разделам', 'Кто руинил по разделам')}</div>
     ${king ? `<p class="vtext">${T(`Чаще всех в списке — <b>${esc(pname(king.p))}</b> (${esc(H(king.p).name)}): ${king.n} из ${rows.length} разделов.`, `<b>${esc(pname(king.p))}</b> на ${esc(H(king.p).name)} отметился в ${king.n} разделах из ${rows.length}. Руинер-многостаночник.`)}</p>` : rows.length ? `<p class="vtext">${T('Виновники разные: проиграли командой.', 'Руинили по очереди, никто не хотел быть единственным.')}</p>` : ''}
     <div class="srows">${rows.map(([what, p]) => `<div class="srow ${king && p === king.p ? 'king' : ''}"><small>${what}</small>${heroTag(p)}</div>`).join('') || '<div class="empty">Мало данных для разбора по разделам.</div>'}</div></section>`;
