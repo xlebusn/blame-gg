@@ -4,7 +4,7 @@
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const SUM_KEY = id => 'blame.sum.' + id;
-const SUM_VER = 1;
+const SUM_VER = 2; // 2: индекс в сводке = итоговый (с антирекордами)
 
 // Временно подменяем текущий матч, считаем, возвращаем всё как было.
 function withMatch(m, fn) {
@@ -18,7 +18,7 @@ function summarize() {
     v: SUM_VER, id: m.match_id, t: m.start_time, dur: m.duration, parsed: isParsed(m),
     ps: S.ps.map(p => {
       const a = (!p.won && p === top) ? { t: ['Главный вклад в поражение', 'РУИНЕР'] } : (ARCH.find(x => x.test(p)) || fallbackOf(p));
-      return { a: p.account_id || null, h: p.hero_id, n: pname(p), w: p.won ? 1 : 0, b: p.blame, f: p.final, pos: p.pos, r: (!p.won && p === top) ? 1 : 0,
+      return { a: p.account_id || null, h: p.hero_id, n: pname(p), w: p.won ? 1 : 0, b: p.score, f: p.final, pos: p.pos, r: (!p.won && p === top) ? 1 : 0,
         k: p.kills || 0, d: p.deaths || 0, as: p.assists || 0, at: a.t, wk: weakOf(p)[0] || null, team: p.team };
     })
   };
@@ -84,7 +84,7 @@ async function openDossier(acc, push = true) {
   if (push) history.replaceState(null, '', `?dossier=${acc}`);
   track('dossier_open', { plus: Premium.active ? 1 : 0 });
   const app = $('#app'); $('#hero').classList.add('compact'); app.classList.remove('hidden');
-  app.innerHTML = `<section class="card"><div class="label">Досье руинера</div><div class="status"><span class="spin"></span><span id="dosProg">Ищем последние матчи…</span></div><div class="prog"><i id="dosBar"></i></div></section>`;
+  app.innerHTML = `<section class="card"><div class="label">Досье игрока</div><div class="status"><span class="spin"></span><span id="dosProg">Ищем последние матчи…</span></div><div class="prog"><i id="dosBar"></i></div></section>`;
   app.scrollIntoView({ behavior: 'smooth', block: 'start' });
   try {
     await loadConstants();
@@ -121,7 +121,7 @@ function renderDossier() {
     </div>
     <h3 class="sub3 mt">Все матчи</h3><div class="mlist">${d.games.slice(3).map(gameRow).join('')}</div>`;
   app.innerHTML = `<section class="card dossier">
-    <div class="profHead">${img(prof.avatarfull, 'ava big')}<div><div class="label">Досье руинера</div><b class="dname">${esc(prof.personaname || 'Игрок ' + acc)}</b><small>${rankName(pr.rank_tier) || 'без ранга'} · ID ${acc}</small></div>
+    <div class="profHead">${img(prof.avatarfull, 'ava big')}<div><div class="label">Досье игрока</div><b class="dname">${esc(prof.personaname || 'Игрок ' + acc)}</b><small>${rankName(pr.rank_tier) || 'без ранга'} · ID ${acc}</small></div>
       <div class="dbtns"><button class="ghost small" data-party-add="${acc}" data-name="${esc(prof.personaname || acc)}" ${inParty ? 'disabled' : ''}>${inParty ? 'В пати ✓' : '+ В пати'}</button><button class="ghost small" data-act="copyDossier">Ссылка</button></div></div>
     <div class="dverdict ${v.tone}"><span class="tag ${v.tone}">${esc(v.t)}</span><p>${esc(v.s)}</p></div>
     <div class="dstats">
@@ -136,8 +136,8 @@ function renderDossier() {
 }
 
 /* ---------- пати ---------- */
-const partyList = () => store.get('blame.party', []);
-const partySet = l => store.set('blame.party', l);
+const partyList = () => UD.get('party', []);
+const partySet = l => UD.set('party', l);
 function partyAdd(acc, name) {
   acc = +acc; const l = partyList();
   if (l.some(x => x.acc === acc)) return toast('Уже в пати');
@@ -161,12 +161,13 @@ function renderParty() {
   app.innerHTML = `<section class="card party">
     <div class="label">${T('Рейтинг пати', 'Кто руинит в нашей пати')}</div>
     <p class="vtext">${T('Добавь друзей, с которыми играешь, и посмотри, кто чаще всего становится главным виновником поражений.', 'Добавь друзей и узнай, кого выгонять из пати. Считаем по последним 20 играм каждого.')}</p>
-    <div class="pmembers">${l.map(x => `<span class="pm"><button class="linkplain" data-dossier="${x.acc}">${esc(x.name)}</button><button class="mx" data-party-rm="${x.acc}" aria-label="Убрать">×</button></span>`).join('') || '<div class="empty">Пати пустая. Добавь друзей по нику или Steam ID, или кнопкой «+ пати» в таблице матча.</div>'}</div>
+    <div class="pmembers">${l.map(x => `<span class="pm"><button class="linkplain" data-dossier="${x.acc}">${esc(x.name)}</button><button class="mx" data-party-rm="${x.acc}" aria-label="Убрать">×</button></span>`).join('') || '<div class="empty">Пати пустая. Добавь друзей по нику или Steam ID — или кнопкой ＋ в таблице любого матча.</div>'}</div>
     <form class="search small" id="partyForm"><input id="partyQ" placeholder="Ник, Steam ID или ссылка на профиль" autocomplete="off"><button class="ghost" type="submit">Найти</button></form>
     <div id="partyPick"></div>
     <div class="pfoot"><small>${l.length}/${max} в пати${Premium.active ? '' : ` · в BLAME+ до ${CONFIG.partyPlus}`}</small>
       <button class="primary" data-act="partyRun" ${l.length < 2 ? 'disabled' : ''}>${T('Посчитать рейтинг', 'Найти руинера пати')}</button></div>
     <div id="partyRes">${S.partyRes ? partyResultHtml(S.partyRes) : ''}</div>
+    ${Account.logged ? '' : `<p class="hint guestNote">Пати сохранится только до закрытия вкладки. <button class="linkbtn" data-act="login">Войди через Telegram</button>, чтобы она осталась.</p>`}
   </section>`;
   document.getElementById('partyForm').addEventListener('submit', async e => {
     e.preventDefault(); const q = document.getElementById('partyQ').value.trim(), box = document.getElementById('partyPick'); if (!q) return;
@@ -238,7 +239,18 @@ function openCardDialog() {
     <div class="pwBtns"><button class="primary" data-act="cardGo">Скачать PNG</button></div>`);
 }
 
+function openShare() {
+  track('share_open');
+  modal(`<div class="pwHead"><h2>Поделиться разбором</h2><p>Кинь в чат пати — пусть руинер знает.</p></div>
+    <div class="shareGrid">
+      <a class="shareBtn tg" href="${esc(tgShareLink())}" target="_blank" rel="noopener" data-act="shareTg"><span>✈️</span><b>Telegram</b><small>Ссылка с вердиктом</small></a>
+      <button class="shareBtn" data-act="copyLink"><span>🔗</span><b>Скопировать</b><small>Текст и ссылка</small></button>
+      <button class="shareBtn" data-act="png"><span>🖼</span><b>Картинка</b><small>${Premium.active ? 'Без плашки, своя подпись' : 'PNG для чата'}</small></button>
+    </div>`);
+}
+
 /* ---------- маршруты и события ---------- */
+globalThis.rerenderView = rerenderView;
 function rerenderView() {
   if (S.view === 'dossier' && S.dossier) renderDossier();
   else if (S.view === 'party') renderParty();
@@ -252,11 +264,23 @@ document.addEventListener('click', e => {
   if (ds.partyRm) return partyRemove(ds.partyRm);
   switch (ds.act) {
     case 'plus': return paywall(ds.reason || 'header');
-    case 'boosty': return track('paywall_boosty');
+    case 'buyStars': return track('paywall_stars');
+    case 'buyBoosty': return track('paywall_boosty');
+    case 'shareTg': return track('share_tg');
+    case 'donateGo': return track('donate_go');
+    case 'share': return openShare();
+    case 'login': closeModal(); return Account.login(ds.reason || 'header');
+    case 'loginPlus': closeModal(); return Account.login('plus_' + (ds.reason || '')).then(ok => { if (ok && !Premium.active) paywall(ds.reason); });
+    case 'accMenu': return accountMenu();
+    case 'logout': closeModal(); return Account.logout();
+    case 'refreshPlus': return Account.load().then(() => { afterAuthChange(); if (Premium.active) { closeModal(); toast('BLAME+ активирован! 🎉'); } else toast('Оплата пока не пришла. Если платил через Boosty — напиши боту /boosty ник.'); });
+    case 'pickMe': closeModal(); window.scrollTo({ top: 0, behavior: 'smooth' }); setMode('player'); $('#q').focus(); return setStatus('Найди себя по нику или Steam ID и нажми «Это я»');
     case 'closeModal': return closeModal();
     case 'partyRun': return runParty();
     case 'donate': e.preventDefault(); return donate();
     case 'copyDossier': return copy(location.href, b);
+    case 'copyLink': track('share_link'); return copy(shareText(), b.querySelector('b') || b);
+    case 'png': closeModal(); return openCardDialog();
     case 'cardGo': {
       exportPng({ caption: document.getElementById('cardCap').value, style: document.getElementById('cardStyle').value });
       track('share_png', { plus: 1 }); return closeModal();
@@ -266,9 +290,9 @@ document.addEventListener('click', e => {
 
 document.getElementById('plusBtn')?.addEventListener('click', () => paywall('header'));
 document.getElementById('partyBtn')?.addEventListener('click', () => openParty());
-updatePlusBtn();
-Premium.recheck();
-autoRedeemFromUrl();
+document.getElementById('donateBtn')?.addEventListener('click', () => donate());
+renderAuth();
+Account.load().then(() => { afterAuthChange(); autoRedeemFromUrl(); });
 {
   const qp = new URLSearchParams(location.search);
   if (qp.get('dossier')) openDossier(qp.get('dossier'), false);

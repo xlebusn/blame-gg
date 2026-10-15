@@ -322,7 +322,7 @@ function roshCard() {
   if (!ev.length) return `<section class="card"><div class="label">${T('Рошан и байбеки', 'Рошан и байбеки')}</div><div class="empty">Ни Рошана, ни спорных байбеков.</div></section>`;
   return `<section class="card"><div class="label">${T('Рошан и байбеки', 'Рошан и байбеки')}</div>
     ${ruiner ? `<p class="vtext">${T('Больше всех ошибок здесь', 'Руинер Рошана и байбеков')}: <b>${esc(pname(ruiner))}</b> (${esc(H(ruiner).name)}).</p>` : ''}
-    <div class="evlist">${ev.map(e => `<div class="ev ${e.bad ? 'dire' : 'radiant'}"><span class="et">${mmss(e.t)}</span><span class="etx">${e.html}</span></div>`).join('')}</div></section>`;
+    <div class="evlist">${ev.map(e => `<div class="ev two ${e.bad ? 'dire' : 'radiant'}"><span class="et">${mmss(e.t)}</span><span class="etx">${e.html}</span></div>`).join('')}</div></section>`;
 }
 
 /* ---------- итог и вкладка ---------- */

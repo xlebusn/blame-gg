@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BLAME.GG — разбор матча Dota 2</title>
-<meta name="description" content="Кто слил катку? Разбор матча Dota 2 по Match ID: руинер, момент слива, дуэли, драки и прожарка на жаргоне.">
+<title>BLAME.GG — кто слил катку? Разбор матча Dota 2</title>
+<meta name="description" content="Кто слил катку? Разбор матча Dota 2 по Match ID: руинер, момент слива, дуэли, драки и прожарка на жаргоне. Бесплатно, в Telegram и на сайте.">
 <meta property="og:title" content="BLAME.GG — кто слил катку?">
 <meta property="og:description" content="Разбор матча Dota 2: руинер, момент слива, дуэли и прожарка. Вставь Match ID — узнай, кто виноват.">
 <meta property="og:type" content="website">
@@ -19,9 +19,11 @@
 <header class="top">
   <a class="logo" href="./">BLAME<span>.GG</span></a>
   <nav class="topnav">
-    <button id="partyBtn" class="ghost small" type="button">Пати</button>
-    <button id="meBtn" class="ghost small" type="button">Мой аккаунт</button>
+    <button id="partyBtn" class="ghost small" type="button" title="Рейтинг пати"><span class="ico">👥</span><span class="lbl">Пати</span></button>
+    <button id="meBtn" class="ghost small" type="button" title="Мои матчи"><span class="ico">🎮</span><span class="lbl">Мои матчи</span></button>
+    <span id="authBox"></span>
     <button id="plusBtn" class="plusBtn small" type="button">BLAME+</button>
+    <button id="donateBtn" class="ghost small heartBtn" type="button" title="Поддержать проект" aria-label="Поддержать проект">❤</button>
   </nav>
 </header>
 
@@ -29,29 +31,56 @@
   <section id="hero" class="hero">
     <div class="eyebrow">DOTA 2 · РАЗБОР МАТЧА</div>
     <h1>Кто <em>слил</em> катку?</h1>
-    <p class="lead">Вставь Match ID или найди себя по нику. Покажем, кто сильнее всех потянул команду вниз, на чём именно, и что исправить в следующей игре.</p>
+    <p class="lead">Вставь Match ID — за пару секунд покажем руинера, момент, где слили игру, и что исправить в следующей катке.</p>
     <form id="searchForm" class="search" autocomplete="off">
       <div class="seg" role="tablist" aria-label="Режим поиска">
         <button type="button" data-mode="match" class="on" role="tab">Матч</button>
         <button type="button" data-mode="player" role="tab">Игрок</button>
       </div>
-      <input id="q" inputmode="text" placeholder="Match ID или ссылка на матч">
+      <input id="q" inputmode="text" placeholder="Match ID или ссылка на матч" aria-label="Match ID, ссылка на матч или ник">
       <button class="primary" type="submit">Разобрать</button>
     </form>
+    <div class="quick">
+      <button class="chipBtn hot" type="button" data-act="demo">▶ Пример разбора</button>
+      <button class="chipBtn" type="button" data-act="modePlayer">🔎 Найти себя по нику</button>
+      <details class="howto"><summary class="chipBtn">❓ Где взять Match ID</summary>
+        <div class="howBody">
+          <b>В клиенте Dota 2:</b> профиль → «Последние матчи» → открой игру, номер матча в правом верхнем углу.<br>
+          <b>Или ссылкой:</b> вставь адрес матча с Dotabuff, OpenDota или STRATZ — мы сами найдём ID.<br>
+          <b>Или по нику:</b> переключись на «Игрок», найди себя и выбери игру из списка.
+        </div>
+      </details>
+    </div>
     <div id="status" class="status" aria-live="polite"></div>
     <div id="picker"></div>
+    <div id="lastMatch"></div>
     <div id="history"></div>
+
+    <div class="features">
+      <div class="feat"><span class="fi">💀</span><b>Руинер за пару секунд</b><p>Индекс вины каждого игрока: сравниваем с тысячами игр на том же герое и позиции.</p></div>
+      <div class="feat"><span class="fi">📉</span><b>Как слили</b><p>Смерть, которая стоила игры, дуэли по позициям, кто первым отлетал в драках.</p></div>
+      <div class="feat"><span class="fi">🤬</span><b>Прожарка на жаргоне</b><p>Токсично или культурно — на выбор. Карточка для чата пати в один клик.</p></div>
+      <a class="feat tgFeat" href="https://t.me/blamedota_bot" target="_blank" rel="noopener"><span class="fi">✈️</span><b>Бот в Telegram</b><p>Кидай ID прямо в чат пати. С BLAME+ бот сам разбирает каждую твою игру.</p></a>
+    </div>
+
+    <div class="promo">
+      <div class="promoPlus"><span class="plusBadge">BLAME+</span><b>Досье на любого игрока, рейтинг пати и авто-разбор каждой игры в Telegram</b><button class="primary small" type="button" data-act="plus" data-reason="home">Подробнее</button></div>
+      <div class="promoDonate"><span class="heart">❤</span><b>Нравится? Поддержи проект</b><button class="ghost small" type="button" data-act="donate">Поддержать</button></div>
+    </div>
   </section>
 
   <section id="app" class="hidden"></section>
 </main>
 
-<footer><span>Данные: OpenDota API. Индекс вины — оценка модели, а не приговор: всегда смотри контекст.</span>
-  <span class="fl2"><button class="linkbtn" data-act="plus" data-reason="header">BLAME+</button> · <a href="#" class="linkbtn" data-act="donate">Поддержать проект ❤</a></span></footer>
+<footer>
+  <span>Данные — OpenDota. Индекс вины — оценка модели, а не приговор: смотри контекст.</span>
+  <span class="fl2"><a class="linkbtn" href="https://t.me/blamedota_bot" target="_blank" rel="noopener">Бот в Telegram</a> · <button class="linkbtn" data-act="plus" data-reason="footer">BLAME+</button> · <button class="linkbtn donateLink" data-act="donate">Поддержать проект ❤</button></span>
+</footer>
 <script src="config.js"></script>
 <script src="app.js"></script>
 <script src="story.js"></script>
 <script src="premium.js"></script>
+<script src="account.js"></script>
 <script src="pro.js"></script>
 </body>
 </html>

@@ -15,6 +15,19 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
 
+// Данные пользователя (история, пати, свой аккаунт, правки позиций).
+// Вошёл через Telegram — хранятся на сервере (синхронизирует account.js), гость — только до закрытия вкладки.
+const UD = {
+  remote: null, onChange: null,
+  get(k, d) { if (this.remote) return this.remote[k] ?? d; try { return JSON.parse(sessionStorage.getItem('blame.' + k)) ?? d; } catch { return d; } },
+  set(k, v) { if (this.remote) { this.remote[k] = v; this.onChange?.(k); return; } try { sessionStorage.setItem('blame.' + k, JSON.stringify(v)); } catch {} }
+};
+// Свой аккаунт Dota: у вошедших — поле аккаунта на сервере.
+const ME = {
+  get() { return globalThis.Account?.me ? globalThis.Account.me.account_id || null : UD.get('me', null); },
+  set(acc) { if (globalThis.Account?.me) globalThis.Account.setAccount(+acc); else UD.set('me', +acc); }
+};
+
 const S = { mode: 'match', heroes: {}, items: {}, itemIds: {}, match: null, ps: [], override: {}, tab: 'verdict', meSlot: null, parse: '' };
 
 /* ---------- данные ---------- */
@@ -285,6 +298,7 @@ function analyze() {
   S.ps = ps; S.arch = {}; S.usedSays = new Set(); S.lines = {}; S.usedTpl = {};
   ps.forEach(p => { p.sections = []; p.final = p.blame; });
   if (typeof applyStory === 'function') applyStory();
+  ps.forEach(p => { p.score = Math.min(99, Math.round(p.final)); });
 }
 
 const losers = () => S.ps.filter(p => !p.won).sort((a, b) => b.final - a.final || b.blame - a.blame);
@@ -449,11 +463,11 @@ async function loadMatch(id, me) {
     await loadConstants();
     const m = await getJSON(`${API}/matches/${id}`);
     if (!m.players?.length) throw Error('в матче нет данных игроков');
-    if (me) store.set('blame.me', +me);
-    S.match = m; S.override = store.get('blame.ovr.' + id, {}); S.tab = 'verdict'; S.parse = ''; S.view = 'match';
+    if (me && !ME.get()) ME.set(me);
+    S.match = m; S.override = (UD.get('ovr', {}))[id] || {}; S.tab = 'verdict'; S.parse = ''; S.view = 'match';
     track('analyze_match', { parsed: isParsed(m) ? 1 : 0 });
     analyze();
-    const myId = store.get('blame.me', null);
+    const myId = ME.get();
     const mine = S.ps.find(p => myId && p.account_id === +myId);
     S.meSlot = mine ? mine.i : null;
     history.replaceState(null, '', `?match=${id}`);
@@ -467,25 +481,29 @@ async function loadMatch(id, me) {
 
 function pushHistory() {
   const m = S.match, top = losers()[0];
-  const h = store.get('blame.history', []).filter(x => x.id !== m.match_id);
+  const h = UD.get('history', []).filter(x => x.id !== m.match_id);
   h.unshift({ id: m.match_id, ts: Date.now(), hero: top?.hero_id, name: top ? pname(top) : '', score: `${m.radiant_score}:${m.dire_score}` });
-  store.set('blame.history', h.slice(0, 10));
+  UD.set('history', h.slice(0, 30));
   renderHistory();
 }
 function renderHistory() {
-  const h = store.get('blame.history', []);
-  $('#history').innerHTML = h.length ? `<div class="histLabel">Недавние разборы</div><div class="hist">${h.map(x => `<button class="chip" data-match="${x.id}">${img(heroIcon({ hero_id: x.hero }), 'hicon sm')}<span>${x.id}</span><small>${esc(x.score)}</small></button>`).join('')}</div>` : '';
+  const h = UD.get('history', []).slice(0, 12);
+  $('#history').innerHTML = h.length ? `<div class="histLabel">${globalThis.Account?.me ? 'Твои разборы' : 'Разборы в этой вкладке'}</div><div class="hist">${h.map(x => `<button class="chip" data-match="${x.id}">${img(heroIcon({ hero_id: x.hero }), 'hicon sm')}<span>${x.id}</span><small>${esc(x.score)}</small></button>`).join('')}</div>` : '';
 }
 
 /* ---------- рендер ---------- */
+const RUIN = { label: 'Антирекорды матча', color: 'var(--f-ruin)' };
 function stack(p, max = 80) {
-  return `<div class="stack" style="--w:${clamp(p.blame / max) * 100}%">${Object.keys(p.parts).filter(k => p.parts[k] > .3).map(k => `<i style="flex:${p.parts[k]};background:${FACTORS[k].color}" title="${FACTORS[k].label}: ${p.parts[k].toFixed(1)}"></i>`).join('')}</div>`;
+  const ruin = (p.final || p.blame) - p.blame;
+  return `<div class="stack" style="--w:${clamp((p.score ?? p.blame) / max) * 100}%">${Object.keys(p.parts).filter(k => p.parts[k] > .3).map(k => `<i style="flex:${p.parts[k]};background:${FACTORS[k].color}" title="${FACTORS[k].label}: +${p.parts[k].toFixed(0)}"></i>`).join('')}${ruin > 0 ? `<i style="flex:${ruin};background:${RUIN.color}" title="${RUIN.label}: +${ruin}"></i>` : ''}</div>`;
 }
 function ring(v, cls = '') {
   const r = 46, c = 2 * Math.PI * r, f = clamp(v / 80);
   return `<svg class="ring ${cls}" viewBox="0 0 110 110" aria-label="Индекс вины ${v}"><circle cx="55" cy="55" r="${r}" class="track"/><circle cx="55" cy="55" r="${r}" class="val" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 55 55)"/><text x="55" y="56">${v}</text><text x="55" y="76" class="sub">из 100</text></svg>`;
 }
-const legend = () => `<div class="legend">${Object.entries(FACTORS).map(([, f]) => `<span><i style="background:${f.color}"></i>${f.label}</span>`).join('')}</div>`;
+const legend = () => `<div class="legend">${[...Object.values(FACTORS), RUIN].map(f => `<span><i style="background:${f.color}"></i>${f.label}</span>`).join('')}</div>`;
+const INDEX_HELP = 'Индекс вины 0–99: насколько игрок сыграл хуже типичной игры на своём герое и позиции (данные OpenDota), плюс по 6 очков за каждый антирекорд матча из «Как слили».';
+const longName = n => n.length > 16 ? ' long' : n.length > 11 ? ' mid' : '';
 
 function render() {
   $('#hero').classList.add('compact');
@@ -493,7 +511,7 @@ function render() {
   app.classList.remove('hidden');
   const parsed = isParsed(m);
   const team = t => S.ps.filter(p => p.team === t);
-  const tabs = [['verdict', 'Вердикт'], ['story', T('Как слили', 'Как слили')], ['all', T('Все 10 игроков', 'Кто рак, кто тащер')], ['players', 'Таблица'], ['timeline', 'Ход игры'], ['me', 'Мой разбор']];
+  const tabs = [['verdict', 'Вердикт'], ['story', 'Как слили'], ['all', T('Все игроки', 'Рак или тащер')], ['timeline', 'Ход игры'], ['players', 'Таблица'], ['me', 'Мой разбор']];
   app.innerHTML = `
   <div class="matchHead card">
     <div class="side rad ${m.radiant_win ? 'win' : ''}"><span class="tname">${esc(teamName(m, 'radiant'))}</span>${m.radiant_win ? '<span class="badge">Победа</span>' : ''}<div class="mini">${team('radiant').map(p => img(heroIcon(p), 'hicon', H(p).name)).join('')}</div></div>
@@ -503,8 +521,9 @@ function render() {
     <div class="side dire ${!m.radiant_win ? 'win' : ''}"><span class="tname">${esc(teamName(m, 'dire'))}</span>${!m.radiant_win ? '<span class="badge">Победа</span>' : ''}<div class="mini">${team('dire').map(p => img(heroIcon(p), 'hicon', H(p).name)).join('')}</div></div>
   </div>
   ${parsed ? '' : `<div class="banner"><div><b>Реплей не разобран.</b> Нет графика золота, драк и вардов, поэтому оценка менее точная. Разбор обычно занимает 1–5 минут.</div><button class="primary small" data-act="parse" ${S.parse ? 'disabled' : ''}>${S.parse ? esc(S.parse) : 'Разобрать реплей'}</button></div>`}
-  <nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-tab="${k}" class="${S.tab === k ? 'on' : ''}">${l}</button>`).join('')}
-    <span class="grow"></span><button class="ghost small tone ${TONE}" data-act="tone" title="Переключить тон текстов">${T('🙂 Культурно', '🤬 Токсик')}</button><button class="ghost small" data-act="copyLink">Ссылка</button><button class="ghost small" data-act="png">Картинка</button></nav>
+  <div class="tabbar"><nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-tab="${k}" class="${S.tab === k ? 'on' : ''}">${l}</button>`).join('')}
+</nav>
+  <div class="tabtools"><button class="ghost small tone ${TONE}" data-act="tone" title="Тон текстов: культурно или с жаргоном">${T('🙂', '🤬')}<span class="lbl">${T('Культурно', 'Токсик')}</span></button><button class="primary small" data-act="share">Поделиться</button></div></div>
   <div id="tabBody"></div>`;
   renderTab();
 }
@@ -525,7 +544,7 @@ function verdictTab() {
     : gap >= 5 ? T(`Следом идёт ${esc(pname(second))} (${esc(H(second).name)}), разница ${gap} очков. Проиграли скорее вдвоём.`, `Но и ${esc(pname(second))} на ${esc(H(second).name)} рядом, всего ${gap} очков. Сливали дуэтом.`)
       : T(`Разница со следующим всего ${gap} очков: вина распределена по команде, не вешай всё на одного.`, `Разница всего ${gap} очков. Тут не один руинер, тут вся пати лоускиллы.`);
   const mvp = W[0];
-  const strongEnemy = mvp && avg(Object.values(mvp.q)) > .78 ? `<p class="note">Учти и соперника: ${esc(pname(mvp))} на ${esc(H(mvp).name)} сыграл лучше, чем в ${Math.round(avg(Object.values(mvp.q)) * 100)}% игр по средним метрикам. Часть поражения — просто сильный противник.</p>` : '';
+  const strongEnemy = mvp && avg(Object.values(mvp.q)) > .78 ? `Учти и соперника: ${esc(pname(mvp))} на ${esc(H(mvp).name)} сыграл лучше, чем в ${Math.round(avg(Object.values(mvp.q)) * 100)}% игр. Часть поражения — просто сильный противник.` : '';
   const lead = leadInfo(loseT);
   return `${turningBanner()}
   <div class="grid vgrid">
@@ -533,29 +552,28 @@ function verdictTab() {
       <div class="cbg" style="background-image:url('${esc(heroImg(top))}')"></div>
       <div class="ctop">
         <div class="label red">${T('Главный вклад в поражение', 'Руинер катки')}</div>
-        <div class="who">${img(heroImg(top), 'hport', H(top).name)}<div><h2>${esc(pname(top))}</h2><div class="sub">${esc(H(top).name)} · ${posLabel(top.pos)} ${rankName(top.rank_tier) ? '· ' + rankName(top.rank_tier) : ''}</div>
+        <div class="who">${img(heroImg(top), 'hport', H(top).name)}<div><h2 class="nm${longName(pname(top))}" title="${esc(pname(top))}">${esc(pname(top))}</h2><div class="sub">${esc(H(top).name)} · ${posLabel(top.pos)} ${rankName(top.rank_tier) ? '· ' + rankName(top.rank_tier) : ''}</div>
           <div class="kda"><b>${top.kills}</b>/<b class="d">${top.deaths}</b>/<b>${top.assists}</b> · ${fmt(top.gold_per_min)} GPM · ${fmt(top.net_worth)} NW</div></div>
-          ${ring(top.blame)}</div>
+          ${ring(top.score)}</div>
       </div>
       ${TONE === 'toxic' ? `<p class="roast">«${esc(archetype(top).say)}»</p>` : ''}
       <p class="vtext">${verdictLead(top, weak)} ${gapText}</p>
-      ${top.sections.length ? `<p class="note">${T('Подтверждается разбором матча', 'И это не только цифры')}: ${top.sections.map(x => `<b>${esc(x.toLowerCase())}</b>`).join(', ')}. <button class="linkbtn" data-tab="story">Как слили →</button></p>` : ''}
-      ${lead ? `<p class="note">${lead}</p>` : ''}
-      ${strongEnemy}
+      ${contextList([
+        top.sections.length ? `${T('Подтверждается разбором матча', 'И это не только цифры')}: ${top.sections.map(x => `<b>${esc(x.toLowerCase())}</b>`).join(', ')}. <button class="linkbtn" data-tab="story">Как слили →</button>` : '',
+        lead, strongEnemy])}
       <div class="reasons">${weak.map(k => `<div class="reason"><i style="background:${FACTORS[k].color}"></i><div><b>${FACTORS[k].label}</b><span>${esc(factorInfo(top, k))}</span></div><em>+${top.parts[k].toFixed(0)}</em></div>`).join('') || '<div class="empty">Явных провалов нет: индекс собран из мелких сигналов.</div>'}</div>
       <div class="cfoot"><span class="conf"><span class="bar"><i style="width:${conf}%"></i></span>Уверенность ${conf}%</span><button class="ghost small" data-me="${top.i}">Подробный разбор →</button></div>
     </article>
 
     <aside class="card ranking">
-      <div class="label">Индекс вины · ${esc(teamName(m, loseT))}</div>
-      ${L.map((p, k) => `<button class="rrow ${k === 0 ? 'top' : ''}" data-me="${p.i}">${img(heroIcon(p), 'hicon')}<span class="rname"><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · Pos ${p.pos}</small></span>${stack(p)}<span class="rnum">${p.blame}${p.sections.length ? `<small class="sec" title="Антирекорды в «Как слили»: ${esc(p.sections.join(', '))}">+${p.sections.length}</small>` : ''}</span></button>`).join('')}
+      <div class="label lrow">Индекс вины · ${esc(teamName(m, loseT))}<span class="info" title="${INDEX_HELP}" aria-label="${INDEX_HELP}">?</span></div>
+      ${L.map((p, k) => `<button class="rrow ${k === 0 ? 'top' : ''}" data-me="${p.i}"><span class="rpos">${k + 1}</span>${img(heroIcon(p), 'hicon')}<span class="rname"><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · Pos ${p.pos}${p.sections.length ? ` · <span class="secs" title="Антирекорды матча: ${esc(p.sections.join(', '))}">⚑${p.sections.length}</span>` : ''}</small></span>${stack(p)}<span class="rnum">${p.score}</span></button>`).join('')}
       ${legend()}
-      <p class="hint">Индекс 0–100: насколько игрок хуже типичной игры на этом герое (по данным OpenDota) с учётом позиции. «+N» — сколько антирекордов у игрока во вкладке «Как слили»: они тоже двигают его вверх в списке. Позицию можно поправить во вкладке «Таблица».</p>
     </aside>
   </div>
 
   <div class="grid awards">
-    ${award('good', T('Не вини его', 'Единственный не рак'), L[L.length - 1], T('Лучший в проигравшей команде', 'Тащил как мог, но с такими тиммейтами без шансов'))}
+    ${(L[L.length - 1].score < 40 ? award('good', T('Не вини его', 'Единственный не рак'), L[L.length - 1], T('Лучший в проигравшей команде', 'Тащил как мог, но с такими тиммейтами без шансов')) : award('warn', T('Меньше всех виноват', 'Наименьшее зло'), L[L.length - 1], T('Лучший в проигравшей команде, но и у него хватает ошибок', 'Лучший из худших. Тоже не подарок, но остальные ещё хуже')))}
     ${second ? award('warn', T('Тоже постарался', 'Соруинер'), second, T('Второй по индексу вины', 'Помогал руинеру сливать')) : ''}
     ${award('mvp', T('MVP соперника', 'Батя соперников'), mvp, T(`${esc(teamName(m, winT))}: самая сильная игра`, 'Раздал всем и ушёл в закат'))}
   </div>`;
@@ -567,7 +585,7 @@ function allTab() {
   const card = p => {
     const a = archetype(p), good = strongOf(p).slice(0, 3), bad = weakOf(p).slice(0, 3);
     return `<article class="card pcard2 ${a.tone}">
-      <div class="aw">${img(heroImg(p), 'hport sm', H(p).name)}<div><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · ${posLabel(p.pos)}</small></div><span class="bnum ${p.blame >= 45 ? 'hi' : p.blame >= 30 ? 'mid' : 'lo'}">${p.blame}</span></div>
+      <div class="aw">${img(heroImg(p), 'hport sm', H(p).name)}<div><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · ${posLabel(p.pos)}</small></div><span class="bnum ${bcls(p)}">${p.score}</span></div>
       <div class="tags"><span class="tag ${a.tone}">${esc(a.title)}</span>${a.sub && TONE === 'toxic' && a.sub !== a.title ? `<span class="tag bad sub">${esc(a.sub)}</span>` : ''}</div>
       <p class="say">${esc(a.say)}</p>
       <div class="kd">${p.kills}/${p.deaths}/${p.assists} · ${fmt(p.gold_per_min)} GPM · ${kfmt(p.hero_damage || 0)} урона · KP ${Math.round(p.kp)}%</div>
@@ -579,9 +597,14 @@ function allTab() {
       <button class="ghost small" data-me="${p.i}">Подробнее →</button>
     </article>`;
   };
-  const team = t => { const ps = S.ps.filter(p => p.team === t).sort((a, b) => t === lt ? b.final - a.final : a.blame - b.blame); const won = ps[0].won;
+  const team = t => { const ps = S.ps.filter(p => p.team === t).sort((a, b) => t === lt ? b.score - a.score : a.score - b.score); const won = ps[0].won;
     return `<div class="thead2 ${t}"><b>${esc(teamName(m, t))}</b><span class="pill ${won ? 'ok' : 'bad'}">${won ? T('Победа', 'Затащили') : T('Поражение', 'Слили')}</span></div><div class="grid allgrid">${ps.map(card).join('')}</div>`; };
   return team(lt) + team(lt === 'radiant' ? 'dire' : 'radiant');
+}
+
+function contextList(items) {
+  items = items.filter(Boolean);
+  return items.length ? `<ul class="ctx">${items.map(x => `<li>${x}</li>`).join('')}</ul>` : '';
 }
 
 function verdictLead(p, weak) {
@@ -598,7 +621,7 @@ function verdictLead(p, weak) {
 function award(tone, title, p, desc) {
   if (!p) return '';
   const st = strongOf(p)[0];
-  return `<button class="card award ${tone}" data-me="${p.i}"><div class="label">${title}</div><div class="aw">${img(heroImg(p), 'hport sm')}<div><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · ${posLabel(p.pos)}</small></div><span class="anum">${p.blame}</span></div>
+  return `<button class="card award ${tone}" data-me="${p.i}"><div class="label">${title}</div><div class="aw">${img(heroImg(p), 'hport sm')}<div><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · ${posLabel(p.pos)}</small></div><span class="anum">${p.score}</span></div>
   <p>${desc}${st ? `. Сильная сторона: ${FACTORS[st].label.toLowerCase()}` : ''}.</p><small class="kd">${p.kills}/${p.deaths}/${p.assists} · ${fmt(p.gold_per_min)} GPM · ${fmt(p.hero_damage)} урона</small></button>`;
 }
 
@@ -617,9 +640,9 @@ function playersTab() {
     const ps = S.ps.filter(p => p.team === t).sort((a, b) => a.pos - b.pos);
     const won = ps[0]?.won;
     return `<div class="card tcard"><div class="thead ${t}"><b>${esc(teamName(m, t))}</b><span class="pill ${won ? 'ok' : 'bad'}">${won ? 'Победа' : 'Поражение'}</span></div>
-    <div class="tscroll"><table><thead><tr><th>Игрок</th><th>Позиция</th><th>K/D/A</th><th>GPM</th><th>XPM</th><th>Урон</th><th>Строения</th><th>Предметы</th><th>Индекс</th><th></th></tr></thead><tbody>
+    <div class="tscroll"><table><thead><tr><th>Игрок</th><th>Позиция</th><th>K/D/A</th><th>GPM</th><th>XPM</th><th>Урон</th><th>Строения</th><th>Предметы</th><th>Индекс</th></tr></thead><tbody>
     ${ps.map(p => `<tr class="${S.meSlot === p.i ? 'me' : ''}">
-      <td><button class="pl" data-me="${p.i}">${img(heroIcon(p), 'hicon')}<span><b>${esc(pname(p))}</b><small>${esc(H(p).name)}${rankName(p.rank_tier) ? ' · ' + rankName(p.rank_tier) : ''}</small></span></button></td>
+      <td><div class="plc"><button class="pl" data-me="${p.i}">${img(heroIcon(p), 'hicon')}<span><b>${esc(pname(p))}</b><small>${esc(H(p).name)}${rankName(p.rank_tier) ? ' · ' + rankName(p.rank_tier) : ''}</small></span></button>${p.account_id ? `<span class="ia"><button class="ib" data-dossier="${p.account_id}" title="Досье игрока" aria-label="Досье игрока">📁</button><button class="ib" data-party-add="${p.account_id}" data-name="${esc(pname(p))}" title="Добавить в пати" aria-label="Добавить в пати">＋</button></span>` : ''}</div></td>
       <td><select data-pos="${p.i}" aria-label="Позиция">${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${p.pos === n ? 'selected' : ''}>${n} · ${POS[n]}</option>`).join('')}</select>${S.override[p.i] ? '<small class="src">вручную</small>' : `<small class="src">${p.posSrc}</small>`}</td>
       <td class="num">${p.kills}/<span class="d">${p.deaths}</span>/${p.assists}</td>
       <td class="num">${fmt(p.gold_per_min)}${chip(p.P.gpm.v)}</td>
@@ -627,13 +650,14 @@ function playersTab() {
       <td class="num">${kfmt(p.hero_damage || 0)}${chip(p.P.hd.v)}</td>
       <td class="num">${kfmt(p.tower_damage || 0)}</td>
       <td><div class="items">${[0, 1, 2, 3, 4, 5].map(k => { const it = itemOf(p['item_' + k]); return it ? img(CDN + it.img, 'item', it.dname) : '<span class="item empty"></span>'; }).join('')}${(() => { const it = itemOf(p.item_neutral); return it ? img(CDN + it.img, 'item neutral', it.dname) : ''; })()}</div></td>
-      <td><span class="bnum ${p.blame >= 45 ? 'hi' : p.blame >= 30 ? 'mid' : 'lo'}">${p.blame}</span></td><td>${p.account_id ? `<div class="rowAct"><button class="ghost small" data-dossier="${p.account_id}" title="Досье руинера">Досье</button><button class="ghost small" data-party-add="${p.account_id}" data-name="${esc(pname(p))}" title="Добавить в пати">+ пати</button></div>` : '<small class="src">профиль скрыт</small>'}</td></tr>`).join('')}
+      <td><span class="bnum ${bcls(p)}">${p.score}</span></td></tr>`).join('')}
     </tbody></table></div></div>`;
   };
   const lt = losers()[0].team;
-  return `<p class="hint top">Маленькие числа — перцентиль: лучше скольких процентов игр на этом герое. Позицию можно поменять, и индекс сразу пересчитается.</p>
+  return `<p class="hint top">Серые числа — перцентиль: лучше скольких процентов игр на этом герое. Позицию можно поменять — индекс пересчитается. 📁 — досье игрока, ＋ — добавить в пати.</p>
   ${table(lt)}${table(lt === 'radiant' ? 'dire' : 'radiant')}`;
 }
+const bcls = p => p.score >= 50 ? 'hi' : p.score >= 32 ? 'mid' : 'lo';
 const chip = v => `<small class="pc ${v >= .7 ? 'g' : v < .3 ? 'r' : ''}">${Math.round(v * 100)}</small>`;
 
 /* ---------- ход игры ---------- */
@@ -667,7 +691,7 @@ function timelineTab() {
     const r = nw('radiant'), d = nw('dire'), tot = r + d || 1;
     return `<div class="card"><div class="label">Итоговая стоимость команд</div>
       <div class="nwbar"><i class="rad" style="width:${r / tot * 100}%">${kfmt(r)}</i><i class="dire" style="width:${d / tot * 100}%">${kfmt(d)}</i></div>
-      <p class="hint">Поминутный график, драки, Рошан и снос строений появятся после разбора реплея. Кнопка «Разобрать реплей» выше.</p></div>`;
+      <p class="hint">Поминутный график, драки, Рошан и снос строений появятся после разбора реплея — нажми «Разобрать реплей» над вкладками.</p></div>`;
   }
   const fights = fightsOf(m), objs = objectivesOf(m), loseT = losers()[0].team;
   const key = fights.filter(f => f.winner !== loseT).sort((a, b) => Math.abs(b.swing) - Math.abs(a.swing)).slice(0, 3);
@@ -681,7 +705,6 @@ function timelineTab() {
   <div class="card chartCard"><div class="chartTop"><div class="label">Преимущество по золоту и опыту</div>
     <div class="legend"><span><i style="background:var(--rad)"></i>Свет впереди</span><span><i style="background:var(--dire)"></i>Тьма впереди</span><span><i class="dash"></i>Опыт</span><span><i class="dot"></i>Драка</span></div></div>
     <div class="chartWrap" id="chartWrap">${goldChart(m, fights, objs)}<div id="tip" class="tip hidden"></div></div>
-    ${leadInfo(loseT) ? `<p class="note">${leadInfo(loseT)}</p>` : ''}
   </div>
   ${key.length ? `<div class="card"><div class="label red">Переломные драки</div>${key.map(f => fightRow(f, true, loseT, culprit)).join('')}</div>` : ''}
   <div class="card"><div class="label">Все события</div><div class="evlist">${events.map(e => e.html).join('') || '<div class="empty">Событий нет</div>'}</div></div>`;
@@ -770,13 +793,13 @@ function meTab() {
     return `<div class="card"><div class="label">Кем ты играл в этом матче?</div><p class="hint">Выбери себя, и мы соберём личный разбор: сильные стороны, слабые места и что делать в следующей игре.</p>
     ${['radiant', 'dire'].map(t => `<div class="pickTeam"><small>${esc(teamName(S.match, t))}</small><div class="pickGrid">${team(t).map(p => `<button class="pickP" data-me="${p.i}">${img(heroImg(p), 'hport sm')}<b>${esc(pname(p))}</b><small>${esc(H(p).name)}</small></button>`).join('')}</div></div>`).join('')}</div>`;
   }
-  const p = S.ps.find(x => x.i === S.meSlot), mates = S.ps.filter(x => x.team === p.team).sort((a, b) => b.blame - a.blame);
+  const p = S.ps.find(x => x.i === S.meSlot), mates = S.ps.filter(x => x.team === p.team).sort((a, b) => b.score - a.score);
   const place = mates.indexOf(p) + 1, weak = weakOf(p).slice(0, 3), strong = strongOf(p).slice(0, 3);
-  const myId = store.get('blame.me', null);
+  const myId = ME.get();
   return `<div class="grid megrid">
     <article class="card mecard">
-      <div class="who">${img(heroImg(p), 'hport', H(p).name)}<div><div class="label ${p.won ? 'green' : 'red'}">${p.won ? 'Победа' : 'Поражение'}</div><h2>${esc(pname(p))}</h2><div class="sub">${esc(H(p).name)} · ${posLabel(p.pos)}</div>
-      <div class="kda"><b>${p.kills}</b>/<b class="d">${p.deaths}</b>/<b>${p.assists}</b> · ${fmt(p.gold_per_min)} GPM · ${fmt(p.xp_per_min)} XPM</div></div>${ring(p.blame)}</div>
+      <div class="who">${img(heroImg(p), 'hport', H(p).name)}<div><div class="label ${p.won ? 'green' : 'red'}">${p.won ? 'Победа' : 'Поражение'}</div><h2 class="nm${longName(pname(p))}" title="${esc(pname(p))}">${esc(pname(p))}</h2><div class="sub">${esc(H(p).name)} · ${posLabel(p.pos)}</div>
+      <div class="kda"><b>${p.kills}</b>/<b class="d">${p.deaths}</b>/<b>${p.assists}</b> · ${fmt(p.gold_per_min)} GPM · ${fmt(p.xp_per_min)} XPM</div></div>${ring(p.score)}</div>
       <p class="vtext">${myPlace(p, place, mates.length)}</p>
       ${radar(p)}
       <div class="legend center"><span><i style="background:var(--accent)"></i>Ты</span><span><i class="dash"></i>Типичная игра на герое</span></div>
@@ -792,7 +815,13 @@ function meTab() {
 /* ---------- шеринг ---------- */
 function shareText() {
   const m = S.match, L = losers(), top = L[0];
-  return `BLAME.GG · матч ${m.match_id} · ${m.radiant_score}:${m.dire_score}\n${T('Главный вклад в поражение', 'Руинер катки')}: ${pname(top)} (${H(top).name}), индекс ${top.blame}/100\n${L.map(p => `${p.blame} — ${pname(p)} (${H(p).name})`).join('\n')}\n${location.href}`;
+  return `BLAME.GG · матч ${m.match_id} · ${m.radiant_score}:${m.dire_score}\n${T('Главный вклад в поражение', 'Руинер катки')}: ${pname(top)} (${H(top).name}), индекс вины ${top.score}\n${L.map((p, k) => `${k + 1}. ${pname(p)} (${H(p).name}) — ${p.score}`).join('\n')}\n${shareUrl()}`;
+}
+function shareUrl() { return `${location.origin}${location.pathname}?match=${S.match.match_id}`; }
+function tgShareLink() {
+  const top = losers()[0];
+  const text = T(`Кто слил катку? ${pname(top)} на ${H(top).name} — индекс вины ${top.score}`, `Руинер найден: ${pname(top)} на ${H(top).name}, индекс вины ${top.score} 💀`);
+  return `https://t.me/share/url?url=${encodeURIComponent(shareUrl())}&text=${encodeURIComponent(text)}`;
 }
 async function copy(text, btn) {
   try { await navigator.clipboard.writeText(text); const o = btn.textContent; btn.textContent = 'Скопировано'; setTimeout(() => btn.textContent = o, 1500); }
@@ -811,21 +840,22 @@ function exportPng(opts = {}) {
   if (style === 'poster') { x.fillStyle = '#ff4d5e'; x.font = '800 22px Unbounded, sans-serif'; x.textAlign = 'right'; x.fillText(T('ГЛАВНЫЙ ВИНОВНИК', 'РУИНЕР КАТКИ'), 1140, 80); x.textAlign = 'left'; }
   x.fillStyle = '#8a93a6'; x.font = '500 22px Inter, sans-serif'; x.fillText(`Матч ${m.match_id} · ${mmss(m.duration)} · ${m.radiant_score}:${m.dire_score}`, 60, 120);
   x.fillStyle = '#e8ecf3'; x.font = '700 46px Unbounded, sans-serif'; x.fillText(pname(top).slice(0, 22), 60, 205);
-  x.fillStyle = '#8a93a6'; x.font = '500 26px Inter, sans-serif'; x.fillText(`${H(top).name} · ${posLabel(top.pos)} · индекс вины ${top.blame}/100${top.sections?.length ? ` · антирекордов в разборе: ${top.sections.length}` : ''}`, 60, 248);
+  x.fillStyle = '#8a93a6'; x.font = '500 26px Inter, sans-serif'; x.fillText(`${H(top).name} · ${posLabel(top.pos)} · индекс вины ${top.score}${top.sections?.length ? ` · антирекордов: ${top.sections.length}` : ''}`, 60, 248);
   let y0 = 310, step = 58;
   if (caption) {
     x.fillStyle = '#ff4d5e'; x.font = 'italic 600 26px Inter, sans-serif';
     let cap = '«' + caption.trim() + '»'; while (x.measureText(cap).width > 1080 && cap.length > 4) cap = cap.slice(0, -2) + '»';
     x.fillText(cap, 60, 292); y0 = 326; step = 52;
   }
-  const fc = { farm: v('--f-farm'), xp: v('--f-xp'), fight: v('--f-fight'), deaths: v('--f-deaths'), obj: v('--f-obj'), util: v('--f-util') };
+  const fc = { farm: v('--f-farm'), xp: v('--f-xp'), fight: v('--f-fight'), deaths: v('--f-deaths'), obj: v('--f-obj'), util: v('--f-util'), ruin: v('--f-ruin') };
   L.forEach((p, k) => {
     const y = y0 + k * step; x.fillStyle = '#e8ecf3'; x.font = '600 24px Inter, sans-serif'; x.fillText(`${pname(p).slice(0, 16)}`, 60, y + 22);
     x.fillStyle = '#8a93a6'; x.font = '500 18px Inter, sans-serif'; x.fillText(H(p).name, 60, y + 44);
-    let cx = 340; const total = 760 * clamp(p.blame / 80);
-    const sum = Object.values(p.parts).reduce((a, b) => a + b, 0) || 1;
-    for (const k2 in p.parts) { const w = total * p.parts[k2] / sum; x.fillStyle = fc[k2] || '#888'; x.fillRect(cx, y + 8, Math.max(0, w - 2), 26); cx += w; }
-    x.fillStyle = '#e8ecf3'; x.font = '700 26px Inter, sans-serif'; x.fillText(String(p.blame), cx + 14, y + 31);
+    let cx = 340; const total = 760 * clamp(p.score / 80);
+    const parts = { ...p.parts, ruin: (p.final || p.blame) - p.blame };
+    const sum = Object.values(parts).reduce((a, b) => a + b, 0) || 1;
+    for (const k2 in parts) { const w = total * parts[k2] / sum; x.fillStyle = fc[k2] || '#888'; x.fillRect(cx, y + 8, Math.max(0, w - 2), 26); cx += w; }
+    x.fillStyle = '#e8ecf3'; x.font = '700 26px Inter, sans-serif'; x.fillText(String(p.score), cx + 14, y + 31);
   });
   const site = (location.host + location.pathname).replace(/\/$/, '');
   if (watermark) {
@@ -864,11 +894,11 @@ document.addEventListener('click', e => {
   if (b.dataset.acc && !b.dataset.act) return showPlayer(b.dataset.acc);
   const act = b.dataset.act;
   if (act === 'parse') return requestParse();
-  if (act === 'copyLink') { track('share_link'); return copy(shareText(), b); }
-  if (act === 'png') return openCardDialog();
-  if (act === 'tone') { TONE = TONE === 'toxic' ? 'polite' : 'toxic'; store.set('blame.tone', TONE); return render(); }
+  if (act === 'tone') { TONE = TONE === 'toxic' ? 'polite' : 'toxic'; store.set('blame.tone', TONE); S.arch = {}; S.lines = {}; S.usedSays = new Set(); S.usedTpl = {}; return S.view === 'match' && S.match ? render() : globalThis.rerenderView?.(); }
   if (act === 'pickOther') { S.meSlot = null; return renderTab(); }
-  if (act === 'saveMe') { store.set('blame.me', +b.dataset.acc); b.textContent = 'Сохранено'; updateMeBtn(); return; }
+  if (act === 'demo') { track('demo'); $('#q').value = DEMO_MATCH; setMode('match'); return loadMatch(DEMO_MATCH); }
+  if (act === 'modePlayer') { setMode('player'); $('#q').focus(); return; }
+  if (act === 'saveMe') { ME.set(+b.dataset.acc); b.textContent = 'Сохранено'; updateMeBtn(); return; }
 });
 document.addEventListener('change', e => {
   const s = e.target.closest('select[data-pos]'); if (!s) return;
@@ -876,18 +906,19 @@ document.addEventListener('change', e => {
   const other = S.ps.find(p => p.team === me.team && p.pos === to && p !== me);
   if (other) S.override[other.i] = me.pos; // меняем позиции местами, чтобы не было двух «троек»
   S.override[me.i] = to;
-  store.set('blame.ovr.' + S.match.match_id, S.override);
+  UD.set('ovr', { ...UD.get('ovr', {}), [S.match.match_id]: S.override });
   analyze(); renderTab();
 });
 $('#searchForm').addEventListener('submit', e => { e.preventDefault(); onSearch($('#q').value); });
 $('#meBtn').addEventListener('click', () => {
-  const me = store.get('blame.me', null);
+  const me = ME.get();
   window.scrollTo({ top: 0, behavior: 'smooth' });
   setMode('player');
   if (me) showPlayer(me); else { $('#q').focus(); setStatus('Найди себя по нику или Steam ID, потом нажми «Это я»'); }
 });
-function updateMeBtn() { $('#meBtn').textContent = store.get('blame.me', null) ? 'Мои матчи' : 'Найти себя'; }
+function updateMeBtn() { const b = $('#meBtn'); if (b) b.innerHTML = `<span class="ico">🎮</span><span class="lbl">${ME.get() ? 'Мои матчи' : 'Найти себя'}</span>`; }
 
+const DEMO_MATCH = '9044969969';
 updateMeBtn();
 renderHistory();
 const qp = new URLSearchParams(location.search);
