@@ -1,7 +1,7 @@
 // Настройки, которые владелец меняет без правки логики.
 const CONFIG = {
   // Сервер BLAME+ (Cloudflare Worker из blame-gg-bot): проверка личных кодов. Локально — wrangler dev.
-  apiUrl: location.hostname === 'localhost' ? 'http://127.0.0.1:8787' : null,
+  apiUrl: location.hostname === 'localhost' ? 'http://127.0.0.1:8787' : 'https://blame-gg-bot.blame-gg-bot.workers.dev',
   // Бот, где покупают подписку и получают код.
   botUrl: 'https://t.me/blamedota_bot',
   // Страница подписки BLAME+ на Boosty (уровень за 149 ₽/мес).
