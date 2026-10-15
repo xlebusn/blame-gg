@@ -1,34 +1,39 @@
 'use strict';
-/* BLAME+: доступ по коду месяца из закрытого поста на Boosty.
-   В коде сайта лежат только SHA-256-хэши кодов. Новый код: node tools/gen-code.js 2026-11 */
+/* BLAME+: личный код из Telegram-бота. Сервер (blame-gg-bot) проверяет код и привязывает его к одному браузеру:
+   второй человек с тем же кодом получит «Код уже используется другим пользователем». */
 
-// tools/gen-code.js дописывает сюда строки. Формат: { hash, until: 'YYYY-MM-DD' }.
-const PREMIUM_CODES = [
-  // codes:start
-  { hash: '0d8f7d7e863b46be19686ded6a1be39f5eb091a300a2574b93be05bee0c7e068', until: '2026-10-31' },
-  { hash: 'c579043e525b8a97ee7f266f2c221761b600f9ce6469df5d43b2ca7a3a61b257', until: '2026-11-30' },
-  // codes:end
-];
-const GRACE_DAYS = 3; // код прошлого месяца работает ещё 3 дня, пока подписчик заберёт новый
-
-async function sha256(s) {
-  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('blame.gg:' + s));
-  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+const RECHECK_MS = 6 * 3600e3; // раз в 6 часов перепроверяем код на сервере
+function deviceId() {
+  let d = store.get('blame.device', null);
+  if (!d) { d = [...crypto.getRandomValues(new Uint8Array(16))].map(x => x.toString(16).padStart(2, '0')).join(''); store.set('blame.device', d); }
+  return d;
 }
-const normCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-const endOf = until => new Date(until + 'T23:59:59').getTime() + GRACE_DAYS * 864e5;
+async function codeApi(path, code) {
+  if (!CONFIG.apiUrl) return { ok: false, status: 0, error: 'Сервер BLAME+ ещё не подключён. Попробуй позже.' };
+  try {
+    const r = await fetch(CONFIG.apiUrl + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, device: deviceId() }) });
+    const j = await r.json().catch(() => ({}));
+    return { ok: r.ok && j.ok, status: r.status, until: j.until, error: j.error || 'Сервер не ответил, попробуй ещё раз.' };
+  } catch { return { ok: false, status: 0, error: 'Нет связи с сервером BLAME+. Проверь интернет.' }; }
+}
 
 const Premium = {
-  state() { return store.get('blame.plus', null); },
-  get active() { const st = this.state(); return !!(st && endOf(st.until) > Date.now()); },
-  get until() { return this.state()?.until; },
+  state() { return store.get('blame.plus2', null); },
+  get active() { const st = this.state(); return !!(st && st.until * 1000 > Date.now()); },
+  get until() { const st = this.state(); return st ? st.until * 1000 : null; },
   async redeem(code) {
-    const h = await sha256(normCode(code));
-    const hit = PREMIUM_CODES.find(c => c.hash === h && endOf(c.until) > Date.now());
-    if (!hit) { track('code_fail'); return false; }
-    store.set('blame.plus', { until: hit.until, at: Date.now() });
+    const r = await codeApi('/api/redeem', code);
+    if (!r.ok) { track('code_fail', { status: r.status }); return r; }
+    store.set('blame.plus2', { code, until: r.until, checkedAt: Date.now() });
     track('code_success');
-    return true;
+    return r;
+  },
+  // Фоновая перепроверка: код могли отозвать, отвязать или подписка закончилась.
+  async recheck() {
+    const st = this.state(); if (!st || Date.now() - (st.checkedAt || 0) < RECHECK_MS) return;
+    const r = await codeApi('/api/check', st.code);
+    if (r.ok) { store.set('blame.plus2', { ...st, until: r.until, checkedAt: Date.now() }); return updatePlusBtn(); }
+    if ([404, 409, 410].includes(r.status)) { store.set('blame.plus2', null); updatePlusBtn(); toast('BLAME+ отключён: ' + r.error); rerenderView(); }
   }
 };
 
@@ -80,8 +85,8 @@ function paywall(reason = 'header') {
   track('paywall_view', { reason });
   if (Premium.active) {
     return modal(`<div class="pwHead"><span class="plusBadge">BLAME+</span><h2>Подписка активна</h2></div>
-      <p class="vtext">Доступ до ${new Date(Premium.until).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}. Новый код появится в закрытом посте на Boosty в начале месяца.</p>
-      <div class="pwBtns"><a class="ghost" href="${esc(CONFIG.boostyUrl)}" target="_blank" rel="noopener">Открыть Boosty</a></div>`);
+      <p class="vtext">Доступ до ${new Date(Premium.until).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}. Код привязан к этому браузеру. Перенести на другой: команда /reset в боте.</p>
+      <div class="pwBtns"><a class="ghost" href="${esc(CONFIG.botUrl)}" target="_blank" rel="noopener">Открыть бота</a></div>`);
   }
   const [title, sub] = PAYWALL_REASON[reason] || PAYWALL_REASON.header;
   modal(`<div class="pwHead"><span class="plusBadge">BLAME+</span><h2>${esc(title)}</h2><p>${esc(sub)}</p></div>
@@ -89,13 +94,15 @@ function paywall(reason = 'header') {
       <div><b>Бесплатно</b><ul><li>Разбор любого матча</li><li>«Как слили», дуэли, драки</li><li>Заголовок досье и 3 матча</li><li>Пати до ${CONFIG.partyFree} человек</li><li>Карточка с плашкой</li></ul></div>
       <div class="plus"><b>BLAME+</b><ul><li><b>Досье на любого игрока</b>: 20 игр, худшие герои, главная проблема</li><li><b>Рейтинг пати</b> и руинер общих игр</li><li>Пати до ${CONFIG.partyPlus} человек</li><li><b>Карточки без плашки</b>, свой текст, стиль «Постер»</li></ul></div>
     </div>
-    <div class="pwBuy"><a class="primary" href="${esc(CONFIG.boostyUrl)}" target="_blank" rel="noopener" data-act="boosty">Оформить за ${esc(CONFIG.price)}</a><small>или ${esc(CONFIG.priceYear)}</small></div>
-    <form class="pwCode" id="codeForm"><input id="codeIn" placeholder="Код из поста на Boosty" autocomplete="off" aria-label="Код доступа"><button class="ghost" type="submit">Активировать</button></form>
-    <p class="hint" id="codeMsg">Код лежит в закрытом посте для подписчиков на Boosty, каждый месяц новый. Вводится один раз, доступ сохранится в этом браузере.</p>`, 'pw');
+    <div class="pwBuy"><a class="primary" href="${esc(CONFIG.botUrl)}?start=plus" target="_blank" rel="noopener" data-act="boosty">Оформить в Telegram за ${esc(CONFIG.price)}</a><a class="ghost small" href="${esc(CONFIG.boostyUrl)}" target="_blank" rel="noopener" data-act="boostyAlt">или через Boosty</a></div>
+    <form class="pwCode" id="codeForm"><input id="codeIn" placeholder="RUIN-XXXX-XXXX" autocomplete="off" aria-label="Личный код"><button class="ghost" type="submit">Активировать</button></form>
+    <p class="hint" id="codeMsg">После оплаты бот пришлёт <b>личный код</b> (команда /code). Он работает только у тебя и привязывается к одному браузеру. Оплатил на Boosty — напиши боту /boosty.</p>`, 'pw');
   document.getElementById('codeForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const msg = document.getElementById('codeMsg'), ok = await Premium.redeem(document.getElementById('codeIn').value);
-    if (!ok) { msg.textContent = 'Код не подошёл или устарел. Проверь пост этого месяца на Boosty.'; msg.classList.add('err'); return; }
+    const msg = document.getElementById('codeMsg'), btn = e.submitter; if (btn) btn.disabled = true;
+    const r = await Premium.redeem(document.getElementById('codeIn').value);
+    if (btn) btn.disabled = false;
+    if (!r.ok) { msg.textContent = r.error; msg.classList.add('err'); return; }
     closeModal(); updatePlusBtn(); toast('BLAME+ активирован. Добро пожаловать!'); rerenderView();
   });
 }
@@ -109,4 +116,12 @@ function updatePlusBtn() {
   const b = document.getElementById('plusBtn'); if (!b) return;
   b.textContent = Premium.active ? 'BLAME+ ✓' : 'BLAME+';
   b.classList.toggle('on', Premium.active);
+}
+
+function autoRedeemFromUrl() {
+  const qp = new URLSearchParams(location.search), code = qp.get('redeem'); if (!code) return;
+  qp.delete('redeem'); history.replaceState(null, '', location.pathname + (qp.toString() ? '?' + qp : ''));
+  paywall('header');
+  const inp = document.getElementById('codeIn'), form = document.getElementById('codeForm');
+  if (inp && form) { inp.value = code; form.requestSubmit(); }
 }

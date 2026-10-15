@@ -9,7 +9,11 @@ const byPos = t => Object.fromEntries(teamOf(t).map(p => [p.pos, p]));
 const heroTag = (p, cls = '') => `<span class="htag ${cls}">${img(heroIcon(p), 'hicon sm', H(p).name)}<b>${esc(pname(p))}</b><small>${esc(H(p).name)}</small></span>`;
 const at = (p, k, min) => { const a = p[k]; return Array.isArray(a) && a.length ? a[Math.min(min, a.length - 1)] : null; };
 const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + kfmt(Math.abs(n));
-const npcMap = () => S._npc || (S._npc = Object.fromEntries(Object.entries(S.heroes).map(([id, h]) => [h.npc, +id])));
+// Кэш привязан к объекту справочника: если герои ещё не загружены, пустую карту не запоминаем.
+const npcMap = () => {
+  if (S._npcFor !== S.heroes) { S._npc = Object.fromEntries(Object.entries(S.heroes).map(([id, h]) => [h.npc, +id])); S._npcFor = S.heroes; }
+  return S._npc;
+};
 
 // Все смерти героев из kills_log убийц: {t, victim, killer}.
 function deathsOf() {

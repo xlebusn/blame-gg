@@ -1,10 +1,14 @@
 // Настройки, которые владелец меняет без правки логики.
 const CONFIG = {
+  // Сервер BLAME+ (Cloudflare Worker из blame-gg-bot): проверка личных кодов. Локально — wrangler dev.
+  apiUrl: location.hostname === 'localhost' ? 'http://127.0.0.1:8787' : null,
+  // Бот, где покупают подписку и получают код.
+  botUrl: 'https://t.me/blamedota_bot',
   // Страница подписки BLAME+ на Boosty (уровень за 149 ₽/мес).
   boostyUrl: 'https://boosty.to/',
   // Куда ведёт кнопка «Поддержать проект» (разовый донат).
   donateUrl: 'https://boosty.to/',
-  price: '149 ₽/мес',
+  price: '100 ⭐/мес',
   priceYear: '1290 ₽/год',
   // ID счётчика Яндекс Метрики. null — аналитика выключена.
   metrikaId: null,

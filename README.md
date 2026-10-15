@@ -15,17 +15,13 @@ npx -y http-server@14.1.1 blame-gg -p 5180 -c-1
 
 Бесплатно доступен полный разбор любого матча. В BLAME+ входят досье на любого игрока, рейтинг пати и карточки без плашки.
 
-- Оплата: подписка на Boosty. Ссылки и цена задаются в `config.js`.
-- Доступ: код месяца из закрытого поста для подписчиков. В `premium.js` лежат только SHA-256-хэши.
-- Новый код на месяц:
-
-  ```bash
-  node tools/gen-code.js 2026-12
-  ```
-
-  Скрипт выводит код и дописывает его хэш в `premium.js`. Дальше коммит, пуш и пост на Boosty.
+- Покупка — в Telegram-боте [@blamedota_bot](https://t.me/blamedota_bot) за Telegram Stars или через Boosty (заявка `/boosty`, выдача `/grant`).
+- Доступ — **личный код** из бота (`/code`). Сервер (папка `blame-gg-bot`, Cloudflare Workers + D1) привязывает код к одному браузеру. Тот же код в другом браузере → «Код уже используется другим пользователем».
+- Кнопка в боте открывает сайт с `?redeem=<код>`: код активируется сам.
+- Сайт перепроверяет код раз в 6 часов: отозванный или перенесённый код отключается.
+- Адрес сервера — `apiUrl` в `config.js`.
 - Аналитика: ID Яндекс Метрики в `config.js`. Цели: `analyze_match`, `open_story`, `share_png`, `share_link`, `dossier_open`, `party_add`, `party_run`, `paywall_view`, `paywall_boosty`, `code_success`, `code_fail`, `donate_click`.
-- Прямые ссылки: `?dossier=<account_id>`, `?party=1`.
+- Прямые ссылки: `?dossier=<account_id>`, `?party=1`, `?redeem=<код>`.
 
 ## Деплой (бесплатно)
 

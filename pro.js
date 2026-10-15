@@ -188,6 +188,7 @@ async function runParty() {
   const l = partyList(); if (l.length < 2) return;
   track('party_run', { n: l.length, plus: Premium.active ? 1 : 0 });
   const box = document.getElementById('partyRes'), res = [];
+  await loadConstants(); // страницу могли открыть сразу по ?party=1
   for (let k = 0; k < l.length; k++) {
     box.innerHTML = `<div class="status"><span class="spin"></span>Собираем досье: ${esc(l[k].name)} (${k + 1} из ${l.length})…</div><div class="prog"><i style="width:${k / l.length * 100}%"></i></div>`;
     try { res.push({ m: l[k], d: await buildDossier(l[k].acc) }); } catch { res.push({ m: l[k], d: null }); }
@@ -266,6 +267,8 @@ document.addEventListener('click', e => {
 document.getElementById('plusBtn')?.addEventListener('click', () => paywall('header'));
 document.getElementById('partyBtn')?.addEventListener('click', () => openParty());
 updatePlusBtn();
+Premium.recheck();
+autoRedeemFromUrl();
 {
   const qp = new URLSearchParams(location.search);
   if (qp.get('dossier')) openDossier(qp.get('dossier'), false);
