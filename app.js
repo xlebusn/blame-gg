@@ -436,7 +436,7 @@ async function showPlayer(acc) {
     setStatus('');
     $('#picker').innerHTML = `<div class="card profile">
       <div class="profHead">${img(prof.avatarfull, 'ava big')}<div><b>${esc(prof.personaname || 'Профиль скрыт')}</b><small>${rankName(pr.rank_tier) || 'без ранга'} · последние ${rm.length}: ${wins}W / ${rm.length - wins}L</small></div>
-      <button class="ghost small" data-act="saveMe" data-acc="${acc}">Это я</button></div>
+      <button class="ghost small" data-act="saveMe" data-acc="${acc}">Это я</button><button class="ghost small" data-dossier="${acc}">Досье</button><button class="ghost small" data-party-add="${acc}" data-name="${esc(prof.personaname || acc)}">В пати</button></div>
       <div class="mlist">${rm.map(x => { const w = (x.player_slot < 128) === x.radiant_win; return `<button class="mrow ${w ? 'w' : 'l'}" data-match="${x.match_id}" data-acc="${acc}">
         ${img(heroIcon(x), 'hicon')}<span class="mres">${w ? 'Победа' : 'Поражение'}</span><span class="mhero">${esc(H(x).name)}</span>
         <span class="mkda">${x.kills}/${x.deaths}/${x.assists}</span><span class="mdur">${mmss(x.duration)}</span><span class="mago">${new Date(x.start_time * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span></button>`; }).join('') || '<div class="empty">Матчей не найдено. Возможно, профиль скрыт в настройках Dota 2.</div>'}</div></div>`;
@@ -450,7 +450,8 @@ async function loadMatch(id, me) {
     const m = await getJSON(`${API}/matches/${id}`);
     if (!m.players?.length) throw Error('в матче нет данных игроков');
     if (me) store.set('blame.me', +me);
-    S.match = m; S.override = store.get('blame.ovr.' + id, {}); S.tab = 'verdict'; S.parse = '';
+    S.match = m; S.override = store.get('blame.ovr.' + id, {}); S.tab = 'verdict'; S.parse = ''; S.view = 'match';
+    track('analyze_match', { parsed: isParsed(m) ? 1 : 0 });
     analyze();
     const myId = store.get('blame.me', null);
     const mine = S.ps.find(p => myId && p.account_id === +myId);
@@ -616,7 +617,7 @@ function playersTab() {
     const ps = S.ps.filter(p => p.team === t).sort((a, b) => a.pos - b.pos);
     const won = ps[0]?.won;
     return `<div class="card tcard"><div class="thead ${t}"><b>${esc(teamName(m, t))}</b><span class="pill ${won ? 'ok' : 'bad'}">${won ? 'Победа' : 'Поражение'}</span></div>
-    <div class="tscroll"><table><thead><tr><th>Игрок</th><th>Позиция</th><th>K/D/A</th><th>GPM</th><th>XPM</th><th>Урон</th><th>Строения</th><th>Предметы</th><th>Индекс</th></tr></thead><tbody>
+    <div class="tscroll"><table><thead><tr><th>Игрок</th><th>Позиция</th><th>K/D/A</th><th>GPM</th><th>XPM</th><th>Урон</th><th>Строения</th><th>Предметы</th><th>Индекс</th><th></th></tr></thead><tbody>
     ${ps.map(p => `<tr class="${S.meSlot === p.i ? 'me' : ''}">
       <td><button class="pl" data-me="${p.i}">${img(heroIcon(p), 'hicon')}<span><b>${esc(pname(p))}</b><small>${esc(H(p).name)}${rankName(p.rank_tier) ? ' · ' + rankName(p.rank_tier) : ''}</small></span></button></td>
       <td><select data-pos="${p.i}" aria-label="Позиция">${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${p.pos === n ? 'selected' : ''}>${n} · ${POS[n]}</option>`).join('')}</select>${S.override[p.i] ? '<small class="src">вручную</small>' : `<small class="src">${p.posSrc}</small>`}</td>
@@ -626,7 +627,7 @@ function playersTab() {
       <td class="num">${kfmt(p.hero_damage || 0)}${chip(p.P.hd.v)}</td>
       <td class="num">${kfmt(p.tower_damage || 0)}</td>
       <td><div class="items">${[0, 1, 2, 3, 4, 5].map(k => { const it = itemOf(p['item_' + k]); return it ? img(CDN + it.img, 'item', it.dname) : '<span class="item empty"></span>'; }).join('')}${(() => { const it = itemOf(p.item_neutral); return it ? img(CDN + it.img, 'item neutral', it.dname) : ''; })()}</div></td>
-      <td><span class="bnum ${p.blame >= 45 ? 'hi' : p.blame >= 30 ? 'mid' : 'lo'}">${p.blame}</span></td></tr>`).join('')}
+      <td><span class="bnum ${p.blame >= 45 ? 'hi' : p.blame >= 30 ? 'mid' : 'lo'}">${p.blame}</span></td><td>${p.account_id ? `<div class="rowAct"><button class="ghost small" data-dossier="${p.account_id}" title="Досье руинера">Досье</button><button class="ghost small" data-party-add="${p.account_id}" data-name="${esc(pname(p))}" title="Добавить в пати">+ пати</button></div>` : '<small class="src">профиль скрыт</small>'}</td></tr>`).join('')}
     </tbody></table></div></div>`;
   };
   const lt = losers()[0].team;
@@ -797,25 +798,40 @@ async function copy(text, btn) {
   try { await navigator.clipboard.writeText(text); const o = btn.textContent; btn.textContent = 'Скопировано'; setTimeout(() => btn.textContent = o, 1500); }
   catch { window.prompt('Скопируй', text); }
 }
-function exportPng() {
+// opts: watermark — плашка бесплатной версии; caption — свой текст (BLAME+); style — 'dark' | 'poster'.
+function exportPng(opts = {}) {
+  const { watermark = false, caption = '', style = 'dark' } = opts;
   const m = S.match, L = losers(), top = L[0], c = document.createElement('canvas');
   c.width = 1200; c.height = 630; const x = c.getContext('2d');
   const css = getComputedStyle(document.documentElement), v = n => css.getPropertyValue(n).trim();
-  const grd = x.createLinearGradient(0, 0, 1200, 630); grd.addColorStop(0, '#0b0d14'); grd.addColorStop(1, '#1a0f16');
+  const grd = x.createLinearGradient(0, 0, 1200, 630);
+  if (style === 'poster') { grd.addColorStop(0, '#3a0812'); grd.addColorStop(1, '#0b0d14'); } else { grd.addColorStop(0, '#0b0d14'); grd.addColorStop(1, '#1a0f16'); }
   x.fillStyle = grd; x.fillRect(0, 0, 1200, 630);
   x.fillStyle = '#ff4d5e'; x.font = '800 30px Unbounded, sans-serif'; x.fillText('BLAME.GG', 60, 80);
+  if (style === 'poster') { x.fillStyle = '#ff4d5e'; x.font = '800 22px Unbounded, sans-serif'; x.textAlign = 'right'; x.fillText(T('ГЛАВНЫЙ ВИНОВНИК', 'РУИНЕР КАТКИ'), 1140, 80); x.textAlign = 'left'; }
   x.fillStyle = '#8a93a6'; x.font = '500 22px Inter, sans-serif'; x.fillText(`Матч ${m.match_id} · ${mmss(m.duration)} · ${m.radiant_score}:${m.dire_score}`, 60, 120);
   x.fillStyle = '#e8ecf3'; x.font = '700 46px Unbounded, sans-serif'; x.fillText(pname(top).slice(0, 22), 60, 205);
-  x.fillStyle = '#8a93a6'; x.font = '500 26px Inter, sans-serif'; x.fillText(`${H(top).name} · ${posLabel(top.pos)} · индекс вины ${top.blame}/100`, 60, 248);
+  x.fillStyle = '#8a93a6'; x.font = '500 26px Inter, sans-serif'; x.fillText(`${H(top).name} · ${posLabel(top.pos)} · индекс вины ${top.blame}/100${top.sections?.length ? ` · антирекордов в разборе: ${top.sections.length}` : ''}`, 60, 248);
+  let y0 = 310, step = 58;
+  if (caption) {
+    x.fillStyle = '#ff4d5e'; x.font = 'italic 600 26px Inter, sans-serif';
+    let cap = '«' + caption.trim() + '»'; while (x.measureText(cap).width > 1080 && cap.length > 4) cap = cap.slice(0, -2) + '»';
+    x.fillText(cap, 60, 292); y0 = 326; step = 52;
+  }
   const fc = { farm: v('--f-farm'), xp: v('--f-xp'), fight: v('--f-fight'), deaths: v('--f-deaths'), obj: v('--f-obj'), util: v('--f-util') };
   L.forEach((p, k) => {
-    const y = 310 + k * 58; x.fillStyle = '#e8ecf3'; x.font = '600 24px Inter, sans-serif'; x.fillText(`${pname(p).slice(0, 16)}`, 60, y + 22);
+    const y = y0 + k * step; x.fillStyle = '#e8ecf3'; x.font = '600 24px Inter, sans-serif'; x.fillText(`${pname(p).slice(0, 16)}`, 60, y + 22);
     x.fillStyle = '#8a93a6'; x.font = '500 18px Inter, sans-serif'; x.fillText(H(p).name, 60, y + 44);
     let cx = 340; const total = 760 * clamp(p.blame / 80);
     const sum = Object.values(p.parts).reduce((a, b) => a + b, 0) || 1;
     for (const k2 in p.parts) { const w = total * p.parts[k2] / sum; x.fillStyle = fc[k2] || '#888'; x.fillRect(cx, y + 8, Math.max(0, w - 2), 26); cx += w; }
     x.fillStyle = '#e8ecf3'; x.font = '700 26px Inter, sans-serif'; x.fillText(String(p.blame), cx + 14, y + 31);
   });
+  const site = (location.host + location.pathname).replace(/\/$/, '');
+  if (watermark) {
+    x.fillStyle = 'rgba(255, 77, 94, .92)'; x.fillRect(0, 594, 1200, 36);
+    x.fillStyle = '#fff'; x.font = '700 18px Inter, sans-serif'; x.fillText(`BLAME.GG FREE · ${site} · без этой плашки — в BLAME+`, 60, 618);
+  } else { x.fillStyle = '#5d6679'; x.font = '500 16px Inter, sans-serif'; x.textAlign = 'right'; x.fillText(site, 1140, 612); x.textAlign = 'left'; }
   c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `blame-${m.match_id}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
 }
 
@@ -842,14 +858,14 @@ async function requestParse() {
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.mode) return setMode(b.dataset.mode);
-  if (b.dataset.tab) { S.tab = b.dataset.tab; document.querySelectorAll('.tabs [data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === S.tab)); if (!b.closest('.tabs')) document.querySelector('.tabs').scrollIntoView({ behavior: 'smooth' }); return renderTab(); }
+  if (b.dataset.tab) { S.tab = b.dataset.tab; track('open_' + S.tab); document.querySelectorAll('.tabs [data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === S.tab)); if (!b.closest('.tabs')) document.querySelector('.tabs').scrollIntoView({ behavior: 'smooth' }); return renderTab(); }
   if (b.dataset.me != null && !b.dataset.act) { S.meSlot = +b.dataset.me; S.tab = 'me'; return render(); }
   if (b.dataset.match) return loadMatch(b.dataset.match, b.dataset.acc);
   if (b.dataset.acc && !b.dataset.act) return showPlayer(b.dataset.acc);
   const act = b.dataset.act;
   if (act === 'parse') return requestParse();
-  if (act === 'copyLink') return copy(shareText(), b);
-  if (act === 'png') return exportPng();
+  if (act === 'copyLink') { track('share_link'); return copy(shareText(), b); }
+  if (act === 'png') return openCardDialog();
   if (act === 'tone') { TONE = TONE === 'toxic' ? 'polite' : 'toxic'; store.set('blame.tone', TONE); return render(); }
   if (act === 'pickOther') { S.meSlot = null; return renderTab(); }
   if (act === 'saveMe') { store.set('blame.me', +b.dataset.acc); b.textContent = 'Сохранено'; updateMeBtn(); return; }

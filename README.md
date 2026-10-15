@@ -11,6 +11,22 @@ npx -y http-server@14.1.1 blame-gg -p 5180 -c-1
 
 Открыть http://localhost:5180. Прямая ссылка на матч: `?match=<id>`, на игрока: `?player=<account_id>`.
 
+## BLAME+ (монетизация)
+
+Бесплатно доступен полный разбор любого матча. В BLAME+ входят досье на любого игрока, рейтинг пати и карточки без плашки.
+
+- Оплата: подписка на Boosty. Ссылки и цена задаются в `config.js`.
+- Доступ: код месяца из закрытого поста для подписчиков. В `premium.js` лежат только SHA-256-хэши.
+- Новый код на месяц:
+
+  ```bash
+  node tools/gen-code.js 2026-12
+  ```
+
+  Скрипт выводит код и дописывает его хэш в `premium.js`. Дальше коммит, пуш и пост на Boosty.
+- Аналитика: ID Яндекс Метрики в `config.js`. Цели: `analyze_match`, `open_story`, `share_png`, `share_link`, `dossier_open`, `party_add`, `party_run`, `paywall_view`, `paywall_boosty`, `code_success`, `code_fail`, `donate_click`.
+- Прямые ссылки: `?dossier=<account_id>`, `?party=1`.
+
 ## Деплой (бесплатно)
 
 GitHub Pages: залить содержимое папки в репозиторий, затем Settings → Pages → Deploy from branch.

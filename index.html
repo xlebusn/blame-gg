@@ -4,7 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BLAME.GG — разбор матча Dota 2</title>
-<meta name="description" content="Разбор матча Dota 2 по Match ID: кто сильнее всех повлиял на поражение, почему и что исправить.">
+<meta name="description" content="Кто слил катку? Разбор матча Dota 2 по Match ID: руинер, момент слива, дуэли, драки и прожарка на жаргоне.">
+<meta property="og:title" content="BLAME.GG — кто слил катку?">
+<meta property="og:description" content="Разбор матча Dota 2: руинер, момент слива, дуэли и прожарка. Вставь Match ID — узнай, кто виноват.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#07080c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307080c'/%3E%3Ctext x='32' y='44' font-size='36' font-family='Arial' font-weight='900' fill='%23ff4d5e' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Unbounded:wght@500;700;800&display=swap" rel="stylesheet">
@@ -13,7 +18,11 @@
 <body>
 <header class="top">
   <a class="logo" href="./">BLAME<span>.GG</span></a>
-  <button id="meBtn" class="ghost small" type="button">Мой аккаунт</button>
+  <nav class="topnav">
+    <button id="partyBtn" class="ghost small" type="button">Пати</button>
+    <button id="meBtn" class="ghost small" type="button">Мой аккаунт</button>
+    <button id="plusBtn" class="plusBtn small" type="button">BLAME+</button>
+  </nav>
 </header>
 
 <main>
@@ -37,8 +46,12 @@
   <section id="app" class="hidden"></section>
 </main>
 
-<footer>Данные: OpenDota API. Индекс вины — оценка модели, а не приговор: всегда смотри контекст.</footer>
+<footer><span>Данные: OpenDota API. Индекс вины — оценка модели, а не приговор: всегда смотри контекст.</span>
+  <span class="fl2"><button class="linkbtn" data-act="plus" data-reason="header">BLAME+</button> · <a href="#" class="linkbtn" data-act="donate">Поддержать проект ❤</a></span></footer>
+<script src="config.js"></script>
 <script src="app.js"></script>
 <script src="story.js"></script>
+<script src="premium.js"></script>
+<script src="pro.js"></script>
 </body>
 </html>
