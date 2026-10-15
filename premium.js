@@ -94,7 +94,7 @@ function paywall(reason = 'header') {
       <div><b>Бесплатно</b><ul><li>Разбор любого матча</li><li>«Как слили», дуэли, драки</li><li>Заголовок досье и 3 матча</li><li>Пати до ${CONFIG.partyFree} человек</li><li>Карточка с плашкой</li></ul></div>
       <div class="plus"><b>BLAME+</b><ul><li><b>Досье на любого игрока</b>: 20 игр, худшие герои, главная проблема</li><li><b>Рейтинг пати</b> и руинер общих игр</li><li>Пати до ${CONFIG.partyPlus} человек</li><li><b>Карточки без плашки</b>, свой текст, стиль «Постер»</li></ul></div>
     </div>
-    <div class="pwBuy"><a class="primary" href="${esc(CONFIG.botUrl)}?start=plus" target="_blank" rel="noopener" data-act="boosty">Оформить в Telegram за ${esc(CONFIG.price)}</a><a class="ghost small" href="${esc(CONFIG.boostyUrl)}" target="_blank" rel="noopener" data-act="boostyAlt">или через Boosty</a></div>
+    <div class="pwBuy"><a class="primary" href="${esc(CONFIG.botUrl)}?start=plus" target="_blank" rel="noopener" data-act="boosty">Оформить в Telegram за ${esc(CONFIG.price)}</a><a class="ghost small" href="${esc(CONFIG.boostyUrl)}" target="_blank" rel="noopener" data-act="boostyAlt">или через Boosty за 149 ₽</a></div>
     <form class="pwCode" id="codeForm"><input id="codeIn" placeholder="RUIN-XXXX-XXXX" autocomplete="off" aria-label="Личный код"><button class="ghost" type="submit">Активировать</button></form>
     <p class="hint" id="codeMsg">После оплаты бот пришлёт <b>личный код</b> (команда /code). Он работает только у тебя и привязывается к одному браузеру. Оплатил на Boosty — напиши боту /boosty.</p>`, 'pw');
   document.getElementById('codeForm').addEventListener('submit', async e => {

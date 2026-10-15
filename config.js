@@ -5,9 +5,9 @@ const CONFIG = {
   // Бот, где покупают подписку и получают код.
   botUrl: 'https://t.me/blamedota_bot',
   // Страница подписки BLAME+ на Boosty (уровень за 149 ₽/мес).
-  boostyUrl: 'https://boosty.to/',
+  boostyUrl: 'https://boosty.to/xlebus_pm',
   // Куда ведёт кнопка «Поддержать проект» (разовый донат).
-  donateUrl: 'https://boosty.to/',
+  donateUrl: 'https://boosty.to/xlebus_pm',
   price: '100 ⭐/мес',
   priceYear: '1290 ₽/год',
   // ID счётчика Яндекс Метрики. null — аналитика выключена.
