@@ -596,18 +596,41 @@ tr:hover .ia { opacity: 1; }
 .pwList b { grid-area: t; font-size: 14px; }
 .pwList small { grid-area: d; color: var(--muted); font-size: 13px; }
 .pwBuy .ghost { text-decoration: none; }
-.loginWait { display: flex; align-items: center; gap: 10px; margin: 18px 0 6px; color: var(--muted); }
+.pwBuy .primary, .pwBuy .ghost { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.loginWait { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; color: var(--muted); }
+.loginSteps { list-style: none; margin: 16px 0 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.loginSteps li { font-size: 12px; font-weight: 600; color: var(--dim); background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; }
+.loginSteps li.on { color: var(--text); border-color: rgba(42, 171, 238, .5); background: rgba(42, 171, 238, .12); }
+.loginSteps li.done { color: var(--rad); border-color: rgba(61, 220, 151, .35); }
 .accRows { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
 .accRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--panel2); border-radius: 12px; padding: 12px 14px; }
-.accRow small { display: block; color: var(--muted); font-size: 13px; }
+.accRow > div { min-width: 0; flex: 1; }
+.accRow small { display: block; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.modal.wide { width: min(520px, 100%); }
+.accDotaHead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 18px 0 8px; }
+.accDotaHead b { font: 700 14px var(--display); }
+.accDotaHead small { color: var(--muted); font-size: 12px; }
+.accDotaList { display: flex; flex-direction: column; gap: 8px; }
+.accDota { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--panel2); border-radius: 12px; padding: 10px 12px; border: 1px solid var(--line); }
+.accDotaMain { min-width: 0; flex: 1; }
+.accDotaMain b { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; }
+.accDotaMain small { display: block; color: var(--muted); font-size: 12px; }
+.accDotaActs { display: flex; align-items: center; gap: 6px; flex: none; }
+.accEmpty { color: var(--muted); font-size: 14px; padding: 12px; background: var(--panel2); border-radius: 12px; border: 1px dashed var(--line); }
+.lmSwitch { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
 .switch { position: relative; width: 44px; height: 26px; flex: none; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--line); cursor: pointer; transition: background .15s; }
 .switch span::after { content: ''; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .15s; }
 .switch input:checked + span { background: var(--rad); }
 .switch input:checked + span::after { transform: translateX(18px); }
-.switch.locked span { opacity: .6; }
+.switch.locked span { opacity: .55; }
 .guestNote { margin-top: 14px; }
+body.modalOpen { overflow: hidden; }
+.feat { transition: border-color .15s, transform .15s; }
+.feat:hover { border-color: #3a4560; transform: translateY(-1px); }
+.tgFeat:hover { transform: translateY(-1px); }
+.lmEmpty .tgBtn { border-color: rgba(42, 171, 238, .45); }
 code { background: var(--panel2); border-radius: 5px; padding: 1px 5px; font-size: .92em; }
 
 @media (max-width: 900px) {
@@ -615,6 +638,9 @@ code { background: var(--panel2); border-radius: 5px; padding: 1px 5px; font-siz
   .promo { grid-template-columns: 1fr; }
   .tabbar { flex-direction: column; align-items: stretch; gap: 0; }
   .tabtools { padding: 8px 0; justify-content: flex-end; }
+  .modal { padding: 20px 16px; border-radius: 16px; }
+  .pwBuy { flex-direction: column; align-items: stretch; }
+  .pwBuy .primary, .pwBuy .ghost { width: 100%; }
 }
 @media (max-width: 640px) {
   .topnav { gap: 4px; }
@@ -622,11 +648,15 @@ code { background: var(--panel2); border-radius: 5px; padding: 1px 5px; font-siz
   .topnav .ico { margin: 0; }
   .topnav .ghost.small, .plusBtn { height: 34px; padding: 0 9px; }
   .accBtn .lbl { display: none; }
-  .features { grid-template-columns: 1fr; margin-top: 28px; }
+  .features { grid-template-columns: 1fr 1fr; margin-top: 28px; }
   .shareGrid { grid-template-columns: 1fr; }
   .tabtools .tone .lbl { display: none; }
   .rrow { grid-template-columns: 14px 30px minmax(0, 1fr) 60px 28px; }
   .promo > div { flex-wrap: wrap; }
+  .accRow { flex-wrap: wrap; }
+  .lead { font-size: 15px; margin-bottom: 20px; }
+  .loginSteps { gap: 4px; }
+  .loginSteps li { font-size: 11px; padding: 4px 8px; }
 }
 
 /* ширина шапки и подвала в flex-колонке; раскрытая подсказка — на всю строку */

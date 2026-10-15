@@ -101,7 +101,8 @@ async function openDossier(acc, push = true) {
 
 function locked(inner, reason) {
   if (Premium.active) return inner;
-  return `<div class="locked"><div class="lockInner" aria-hidden="true">${inner}</div><div class="lockCta"><span class="plusBadge">BLAME+</span><b>${esc(PAYWALL_REASON[reason][0])}</b><button class="primary small" data-act="plus" data-reason="${reason}">Открыть за ${esc(CONFIG.price)}</button></div></div>`;
+  const title = PAYWALL_REASON[reason] || 'Доступно в BLAME+';
+  return `<div class="locked"><div class="lockInner" aria-hidden="true">${inner}</div><div class="lockCta"><span class="plusBadge">BLAME+</span><b>${esc(title)}</b><button class="primary small" data-act="plus" data-reason="${reason}">Открыть · ${esc(CONFIG.price)}</button></div></div>`;
 }
 const gameRow = g => {
   const p = { hero_id: g.me.h };
@@ -273,8 +274,41 @@ document.addEventListener('click', e => {
     case 'loginPlus': closeModal(); return Account.login('plus_' + (ds.reason || '')).then(ok => { if (ok && !Premium.active) paywall(ds.reason); });
     case 'accMenu': return accountMenu();
     case 'logout': closeModal(); return Account.logout();
-    case 'refreshPlus': return Account.load().then(() => { afterAuthChange(); if (Premium.active) { closeModal(); toast('BLAME+ активирован! 🎉'); } else toast('Оплата пока не пришла. Если платил через Boosty — напиши боту /boosty ник.'); });
-    case 'pickMe': closeModal(); window.scrollTo({ top: 0, behavior: 'smooth' }); setMode('player'); $('#q').focus(); return setStatus('Найди себя по нику или Steam ID и нажми «Это я»');
+    case 'refreshPlus': {
+      const btn = document.getElementById('refreshPlusBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Проверяем…'; }
+      return Account.load().then(() => {
+        afterAuthChange();
+        if (Premium.active) { closeModal(); toast('BLAME+ активирован!'); }
+        else { toast('Оплата пока не пришла. Boosty: напиши боту /boosty твой_ник.'); if (btn) { btn.disabled = false; btn.textContent = 'Проверить оплату'; } }
+      }).catch(() => { if (btn) { btn.disabled = false; btn.textContent = 'Проверить оплату'; } toast('Не удалось проверить — попробуй ещё раз.'); });
+    }
+    case 'pickMe': {
+      const n = Account.accounts?.length || 0;
+      const lim = Account.accountLimit || CONFIG.accountsFree;
+      if (Account.logged && n >= lim && !Account.plus) { closeModal(); return paywall('accounts'); }
+      if (Account.logged && n >= lim) { toast(`Лимит ${lim} аккаунтов. Удали один в меню, чтобы добавить новый.`); return; }
+      closeModal(); window.scrollTo({ top: 0, behavior: 'smooth' }); setMode('player'); $('#q').focus();
+      return setStatus(n ? 'Найди ещё один свой аккаунт и нажми «Это я»' : 'Найди себя по нику или Steam ID и нажми «Это я»');
+    }
+    case 'accPrimary': {
+      const id = +ds.acc;
+      if (!Account.logged) return;
+      return Account.setPrimary(id).then(r => {
+        if (!r.ok) return toast(r.error);
+        toast('Основной аккаунт обновлён');
+        if (document.querySelector('.modal.acc')) accountMenu();
+      });
+    }
+    case 'accRemove': {
+      const id = +ds.acc;
+      if (!confirm('Удалить этот аккаунт из списка?')) return;
+      return Account.removeAccount(id).then(r => {
+        if (!r.ok) return toast(r.error);
+        toast('Аккаунт удалён');
+        if (Account.logged) accountMenu();
+      });
+    }
     case 'closeModal': return closeModal();
     case 'partyRun': return runParty();
     case 'donate': e.preventDefault(); return donate();

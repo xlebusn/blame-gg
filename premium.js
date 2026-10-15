@@ -27,10 +27,14 @@ function modal(html, cls = '') {
   el.innerHTML = `<div class="modal ${cls}" role="dialog" aria-modal="true"><button class="mclose" data-act="closeModal" aria-label="Закрыть">×</button>${html}</div>`;
   el.addEventListener('click', e => { if (e.target === el) closeModal(); });
   document.body.appendChild(el);
+  document.body.classList.add('modalOpen');
   setTimeout(() => el.querySelector('input,button.primary,a.primary')?.focus(), 30);
   return el;
 }
-function closeModal() { document.getElementById('modal')?.remove(); }
+function closeModal() {
+  document.getElementById('modal')?.remove();
+  document.body.classList.remove('modalOpen');
+}
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 function toast(text, action) {
@@ -43,6 +47,7 @@ function toast(text, action) {
 }
 
 const PLUS_FEATURES = [
+  ['🎮', `До ${CONFIG.accountsPlus} своих аккаунтов`, 'смок, твинк, паб — стату и авто-разбор по каждому'],
   ['🔔', 'Авто-разбор каждой игры', 'бот сам присылает в Telegram, кто слил'],
   ['📁', 'Досье на любого игрока', '20 игр, сколько раз руинер, худшие герои, главная проблема'],
   ['👥', 'Рейтинг пати', 'кто из друзей чаще руинит, руинер ваших общих игр'],
@@ -53,7 +58,8 @@ const PAYWALL_REASON = {
   party: 'Кто главный руинер пати — в BLAME+',
   party_size: `Больше ${CONFIG.partyFree} друзей в пати — в BLAME+`,
   card: 'Карточка без плашки — в BLAME+',
-  auto: 'Авто-разбор каждой игры — в BLAME+'
+  auto: 'Авто-разбор каждой игры — в BLAME+',
+  accounts: `Несколько своих аккаунтов (до ${CONFIG.accountsPlus}) — в BLAME+`
 };
 function paywall(reason = 'header') {
   track('paywall_view', { reason, logged: Account.logged ? 1 : 0 });
@@ -65,12 +71,13 @@ function paywall(reason = 'header') {
   }
   const title = PAYWALL_REASON[reason] || 'BLAME+ — всё про руинеров';
   const buy = Account.logged
-    ? `<div class="pwBuy"><a class="primary" href="${esc(CONFIG.botUrl)}?start=plus" target="_blank" rel="noopener" data-act="buyStars">Оформить в Telegram · ${esc(CONFIG.price)}</a>
+    ? `<div class="pwBuy"><a class="primary" href="${esc(CONFIG.botUrl)}?start=plus" target="_blank" rel="noopener" data-act="buyStars">⭐ Telegram · ${esc(CONFIG.price)}</a>
         <a class="ghost" href="${esc(CONFIG.boostyUrl)}" target="_blank" rel="noopener" data-act="buyBoosty">Boosty · ${esc(CONFIG.priceBoosty)}</a></div>
-       <p class="hint">Оплатил — вернись сюда, доступ откроется сам. Через Boosty: после оплаты напиши боту <code>/boosty ник</code>. <button class="linkbtn" data-act="refreshPlus">Проверить оплату</button></p>`
-    : `<div class="pwBuy"><button class="primary" data-act="loginPlus" data-reason="${esc(reason)}">Войти через Telegram и оформить</button></div>
-       <p class="hint">Подписка привязывается к твоему Telegram: вход в одно нажатие, без паролей.</p>`;
-  modal(`<div class="pwHead"><span class="plusBadge">BLAME+</span><h2>${esc(title)}</h2><p>${esc(CONFIG.price)} в Telegram или ${esc(CONFIG.priceBoosty)} на Boosty. Отменить можно в любой момент.</p></div>
+       <p class="hint">Stars включаются сами. Boosty: после оплаты напиши боту <code>/boosty твой_ник</code>. <button class="linkbtn" data-act="refreshPlus" id="refreshPlusBtn">Проверить оплату</button></p>`
+    : `<div class="pwBuy"><button class="primary" data-act="loginPlus" data-reason="${esc(reason)}">Войти через Telegram</button>
+        <a class="ghost" href="${esc(CONFIG.boostyUrl)}" target="_blank" rel="noopener" data-act="buyBoosty">Сначала Boosty · ${esc(CONFIG.priceBoosty)}</a></div>
+       <p class="hint">Подписка привязана к Telegram: войди одним нажатием в боте — без паролей и кодов.</p>`;
+  modal(`<div class="pwHead"><span class="plusBadge">BLAME+</span><h2>${esc(title)}</h2><p>${esc(CONFIG.price)} в Telegram или ${esc(CONFIG.priceBoosty)} на Boosty. Отмена в любой момент.</p></div>
     <div class="pwList">${PLUS_FEATURES.map(([i, t, d]) => `<div><span>${i}</span><b>${t}</b><small>${d}</small></div>`).join('')}</div>
     ${buy}`, 'pw');
 }
@@ -90,9 +97,10 @@ function updatePlusBtn() {
   b.classList.toggle('on', Premium.active);
 }
 
-// Старые ссылки из бота с личным кодом: коды больше не нужны, предлагаем войти.
+// Старые ссылки ?redeem= из бота: коды больше не нужны.
 function autoRedeemFromUrl() {
   const qp = new URLSearchParams(location.search); if (!qp.get('redeem')) return;
   qp.delete('redeem'); history.replaceState(null, '', location.pathname + (qp.toString() ? '?' + qp : ''));
-  if (!Account.logged) toast('Коды больше не нужны: подписка привязана к Telegram — просто войди.', 'login');
+  if (Account.logged) toast(Premium.active ? 'Ты уже вошёл — BLAME+ активен.' : 'Код больше не нужен. Оформи подписку в боте — она привяжется к твоему Telegram.', Premium.active ? undefined : 'plus');
+  else toast('Коды больше не нужны. Войди через Telegram — подписка откроется сама.', 'login');
 }

@@ -22,10 +22,21 @@ const UD = {
   get(k, d) { if (this.remote) return this.remote[k] ?? d; try { return JSON.parse(sessionStorage.getItem('blame.' + k)) ?? d; } catch { return d; } },
   set(k, v) { if (this.remote) { this.remote[k] = v; this.onChange?.(k); return; } try { sessionStorage.setItem('blame.' + k, JSON.stringify(v)); } catch {} }
 };
-// Свой аккаунт Dota: у вошедших — поле аккаунта на сервере.
+// Свои аккаунты Dota: у вошедших — список на сервере (primary = «мой»), у гостя — один ID во вкладке.
 const ME = {
-  get() { return globalThis.Account?.me ? globalThis.Account.me.account_id || null : UD.get('me', null); },
-  set(acc) { if (globalThis.Account?.me) globalThis.Account.setAccount(+acc); else UD.set('me', +acc); }
+  list() {
+    if (globalThis.Account?.me) return globalThis.Account.me.accounts || (globalThis.Account.me.account_id ? [{ account_id: globalThis.Account.me.account_id, is_primary: true }] : []);
+    const one = UD.get('me', null); return one ? [{ account_id: +one, is_primary: true }] : [];
+  },
+  get() {
+    if (globalThis.Account?.me) return globalThis.Account.me.account_id || null;
+    return UD.get('me', null);
+  },
+  isMine(id) { return !!id && this.list().some(a => +a.account_id === +id); },
+  async set(acc, name) {
+    if (globalThis.Account?.me) return globalThis.Account.addAccount(+acc, name);
+    UD.set('me', +acc); return { ok: true };
+  }
 };
 
 const S = { mode: 'match', heroes: {}, items: {}, itemIds: {}, match: null, ps: [], override: {}, tab: 'verdict', meSlot: null, parse: '' };
@@ -450,7 +461,7 @@ async function showPlayer(acc) {
     setStatus('');
     $('#picker').innerHTML = `<div class="card profile">
       <div class="profHead">${img(prof.avatarfull, 'ava big')}<div><b>${esc(prof.personaname || 'Профиль скрыт')}</b><small>${rankName(pr.rank_tier) || 'без ранга'} · последние ${rm.length}: ${wins}W / ${rm.length - wins}L</small></div>
-      <button class="ghost small" data-act="saveMe" data-acc="${acc}">Это я</button><button class="ghost small" data-dossier="${acc}">Досье</button><button class="ghost small" data-party-add="${acc}" data-name="${esc(prof.personaname || acc)}">В пати</button></div>
+      <button class="ghost small" data-act="saveMe" data-acc="${acc}" data-name="${esc(prof.personaname || '')}">${ME.isMine(acc) ? 'Уже мой ✓' : 'Это я'}</button><button class="ghost small" data-dossier="${acc}">Досье</button><button class="ghost small" data-party-add="${acc}" data-name="${esc(prof.personaname || acc)}">В пати</button></div>
       <div class="mlist">${rm.map(x => { const w = (x.player_slot < 128) === x.radiant_win; return `<button class="mrow ${w ? 'w' : 'l'}" data-match="${x.match_id}" data-acc="${acc}">
         ${img(heroIcon(x), 'hicon')}<span class="mres">${w ? 'Победа' : 'Поражение'}</span><span class="mhero">${esc(H(x).name)}</span>
         <span class="mkda">${x.kills}/${x.deaths}/${x.assists}</span><span class="mdur">${mmss(x.duration)}</span><span class="mago">${new Date(x.start_time * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span></button>`; }).join('') || '<div class="empty">Матчей не найдено. Возможно, профиль скрыт в настройках Dota 2.</div>'}</div></div>`;
@@ -463,12 +474,11 @@ async function loadMatch(id, me) {
     await loadConstants();
     const m = await getJSON(`${API}/matches/${id}`);
     if (!m.players?.length) throw Error('в матче нет данных игроков');
-    if (me && !ME.get()) ME.set(me);
+    if (me && !ME.isMine(me) && !ME.get()) ME.set(me);
     S.match = m; S.override = (UD.get('ovr', {}))[id] || {}; S.tab = 'verdict'; S.parse = ''; S.view = 'match';
     track('analyze_match', { parsed: isParsed(m) ? 1 : 0 });
     analyze();
-    const myId = ME.get();
-    const mine = S.ps.find(p => myId && p.account_id === +myId);
+    const mine = S.ps.find(p => ME.isMine(p.account_id));
     S.meSlot = mine ? mine.i : null;
     history.replaceState(null, '', `?match=${id}`);
     pushHistory();
@@ -795,7 +805,6 @@ function meTab() {
   }
   const p = S.ps.find(x => x.i === S.meSlot), mates = S.ps.filter(x => x.team === p.team).sort((a, b) => b.score - a.score);
   const place = mates.indexOf(p) + 1, weak = weakOf(p).slice(0, 3), strong = strongOf(p).slice(0, 3);
-  const myId = ME.get();
   return `<div class="grid megrid">
     <article class="card mecard">
       <div class="who">${img(heroImg(p), 'hport', H(p).name)}<div><div class="label ${p.won ? 'green' : 'red'}">${p.won ? 'Победа' : 'Поражение'}</div><h2 class="nm${longName(pname(p))}" title="${esc(pname(p))}">${esc(pname(p))}</h2><div class="sub">${esc(H(p).name)} · ${posLabel(p.pos)}</div>
@@ -803,7 +812,7 @@ function meTab() {
       <p class="vtext">${myPlace(p, place, mates.length)}</p>
       ${radar(p)}
       <div class="legend center"><span><i style="background:var(--accent)"></i>Ты</span><span><i class="dash"></i>Типичная игра на герое</span></div>
-      <div class="cfoot"><button class="ghost small" data-act="pickOther">Выбрать другого игрока</button>${p.account_id && p.account_id !== myId ? `<button class="ghost small" data-act="saveMe" data-acc="${p.account_id}">Запомнить, это мой аккаунт</button>` : p.account_id ? '<span class="hint">Это твой сохранённый аккаунт</span>' : ''}</div>
+      <div class="cfoot"><button class="ghost small" data-act="pickOther">Выбрать другого игрока</button>${p.account_id && !ME.isMine(p.account_id) ? `<button class="ghost small" data-act="saveMe" data-acc="${p.account_id}" data-name="${esc(pname(p))}">Запомнить, это мой аккаунт</button>` : p.account_id ? '<span class="hint">Это твой сохранённый аккаунт</span>' : ''}</div>
     </article>
     <div class="col">
       <div class="card"><div class="label red">Что подтянуть</div>${weak.map(k => `<div class="tip2"><div class="th"><i style="background:${FACTORS[k].color}"></i><b>${FACTORS[k].label}</b><em>+${p.parts[k].toFixed(0)} к индексу</em></div><span>${esc(factorInfo(p, k))}</span><p>${TIPS[k]}</p></div>`).join('') || '<div class="empty">Явных провалов нет. Хорошая игра.</div>'}</div>
@@ -898,7 +907,16 @@ document.addEventListener('click', e => {
   if (act === 'pickOther') { S.meSlot = null; return renderTab(); }
   if (act === 'demo') { track('demo'); $('#q').value = DEMO_MATCH; setMode('match'); return loadMatch(DEMO_MATCH); }
   if (act === 'modePlayer') { setMode('player'); $('#q').focus(); return; }
-  if (act === 'saveMe') { ME.set(+b.dataset.acc); b.textContent = 'Сохранено'; updateMeBtn(); return; }
+  if (act === 'saveMe') {
+    ME.set(+b.dataset.acc, b.dataset.name).then(r => {
+      if (r?.need_plus) return paywall('accounts');
+      if (r && r.ok === false) return toast(r.error || 'Не удалось сохранить');
+      b.textContent = 'Сохранено';
+      updateMeBtn();
+      globalThis.afterAuthChange?.();
+    });
+    return;
+  }
 });
 document.addEventListener('change', e => {
   const s = e.target.closest('select[data-pos]'); if (!s) return;

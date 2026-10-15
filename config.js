@@ -15,5 +15,8 @@ const CONFIG = {
   metrikaId: null,
   // Лимиты пати.
   partyFree: 5,
-  partyPlus: 10
+  partyPlus: 10,
+  // Свои аккаунты Dota: без подписки 1, с BLAME+ — до 5.
+  accountsFree: 1,
+  accountsPlus: 5
 };
