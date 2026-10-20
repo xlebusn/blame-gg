@@ -336,21 +336,65 @@ async function openReel() {
   track('reel_ready');
   document.querySelector('.reelWrap').innerHTML = `<video src="${url}" controls autoplay playsinline loop></video>`;
   document.getElementById('reelSt').textContent = 'Готово! Закинь в Stories или в чат пати.';
-  const canShare = navigator.canShare?.({ files: [file] });
-  document.getElementById('reelBtns').innerHTML = `${canShare ? '<button class="primary" id="reelShare">📤 Поделиться</button>' : ''}
-    <a class="${canShare ? 'ghost' : 'primary'} btnlike" href="${url}" download="${file.name}" id="reelDl">⬇️ Скачать ${ext.toUpperCase()}</a>
+  const canShare = navigator.canShare?.({ files: [file] }) && !TMA;
+  const canTg = TMA || globalThis.Account?.logged;
+  document.getElementById('reelBtns').innerHTML = `${canTg ? '<button class="primary" id="reelTg">📲 Прислать в Telegram</button>' : ''}
+    ${canShare ? `<button class="${canTg ? 'ghost' : 'primary'}" id="reelShare">📤 Поделиться</button>` : ''}
+    ${TMA ? '' : `<a class="${canTg || canShare ? 'ghost' : 'primary'} btnlike" href="${url}" download="${file.name}" id="reelDl">⬇️ Скачать ${ext.toUpperCase()}</a>`}
     <button class="ghost" id="reelAgain">↻ Ещё раз</button>`;
-  document.getElementById('reelDl').addEventListener('click', () => track('reel_download'));
+  document.getElementById('reelDl')?.addEventListener('click', () => track('reel_download'));
   document.getElementById('reelAgain').addEventListener('click', () => openReel());
   document.getElementById('reelShare')?.addEventListener('click', async () => {
     track('reel_share');
     try { await navigator.share({ files: [file], title: 'BLAME.GG', text: `Кто слил катку? ${shareUrl()}` }); } catch {}
   });
+  const tgBtn = document.getElementById('reelTg');
+  tgBtn?.addEventListener('click', () => sendReelToTg(blob, type, d.m.match_id, tgBtn));
+  if (TMA && tgBtn) sendReelToTg(blob, type, d.m.match_id, tgBtn); // в мини-приложении шлём сразу — ради этого его и открыли
 }
+
+/* ---------- отправка ролика в Telegram через бота ---------- */
+const TMA = new URLSearchParams(location.search).has('tma');
+// Подпись Telegram приходит в #hash; сайт потом переписывает адрес, поэтому забираем её сразу.
+const TMA_INIT = TMA ? new URLSearchParams(location.hash.slice(1)).get('tgWebAppData') : null;
+let tmaReady = null;
+function loadTma() {
+  if (!TMA) return Promise.resolve(null);
+  return tmaReady ||= new Promise(res => {
+    const sc = document.createElement('script'); sc.src = 'https://telegram.org/js/telegram-web-app.js';
+    sc.onload = () => { const w = window.Telegram?.WebApp; try { w?.ready(); w?.expand(); w?.setHeaderColor?.('#07080c'); w?.setBackgroundColor?.('#07080c'); } catch {} res(w || null); };
+    sc.onerror = () => res(null);
+    document.head.appendChild(sc);
+  });
+}
+loadTma();
+
+async function sendReelToTg(blob, type, id, btn) {
+  const st = document.getElementById('reelSt');
+  btn.disabled = true; btn.textContent = 'Отправляем…'; if (st) st.textContent = 'Отправляем видео в Telegram…';
+  track('reel_tg');
+  try {
+    const w = await loadTma();
+    const headers = { 'content-type': type };
+    if (w?.initData || TMA_INIT) headers['x-tg-init'] = w?.initData || TMA_INIT;
+    else if (globalThis.Account?.sid) headers.authorization = 'Bearer ' + Account.sid;
+    const r = await fetch(`${CONFIG.apiUrl}/api/reel?match=${id}`, { method: 'POST', headers, body: blob });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || 'Не получилось отправить');
+    track('reel_tg_ok');
+    btn.textContent = '✅ Видео в чате с ботом';
+    if (st) st.textContent = 'Готово! Видео уже в Telegram — перешли его в чат пати.';
+    if (w) { try { w.HapticFeedback?.notificationOccurred('success'); } catch {} setTimeout(() => w.close(), 1800); }
+  } catch (e) {
+    btn.disabled = false; btn.textContent = '📲 Прислать ещё раз';
+    if (st) st.textContent = e.message;
+  }
+}
+
 // Из ссылки бота (?reel=1): запись стартует только по нажатию — иначе браузер не даст звук.
 function offerReel() {
-  modal(`<div class="pwHead"><h2>🎬 Видео-хайлайт матча</h2><p>Вертикальный ролик на 20 секунд: счёт, герой, золото, ключевые моменты и вердикт. Для Stories и чата пати.</p></div>
-    <div class="reelBtns"><button class="primary" id="reelGo">▶ Собрать видео</button></div>`, 'reel');
+  modal(`<div class="pwHead"><h2>🎬 Видео-хайлайт матча</h2><p>Вертикальный ролик на 20 секунд: счёт, герой, золото, ключевые моменты и вердикт. ${TMA ? 'Соберу и пришлю его в чат с ботом.' : 'Для Stories и чата пати.'}</p></div>
+    <div class="reelBtns"><button class="primary" id="reelGo">${TMA ? '▶ Собрать и прислать в чат' : '▶ Собрать видео'}</button></div>`, 'reel');
   document.getElementById('reelGo').addEventListener('click', () => openReel());
 }
 globalThis.openReel = openReel;

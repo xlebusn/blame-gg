@@ -949,5 +949,5 @@ const DEMO_MATCH = '9044969969';
 updateMeBtn();
 renderHistory();
 const qp = new URLSearchParams(location.search);
-if (qp.get('match')) { $('#q').value = qp.get('match'); Promise.resolve(loadMatch(qp.get('match'))).then(() => { if (qp.get('reel') && S.match) offerReel(); }); }
+if (qp.get('match')) { $('#q').value = qp.get('match'); Promise.resolve(loadMatch(qp.get('match'))).then(() => { if ((qp.has('reel') || qp.has('tma')) && S.match) offerReel(); }); }
 else if (qp.get('player')) { setMode('player'); showPlayer(qp.get('player')); }
