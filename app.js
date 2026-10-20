@@ -67,7 +67,14 @@ const H = p => S.heroes[p.hero_id] || { name: 'Герой #' + p.hero_id, roles:
 const heroImg = p => H(p).img ? CDN + H(p).img : '';
 const heroIcon = heroImg; // квадратные иконки 32px плохо смотрятся в 16:9, берём портрет
 const itemOf = id => { const n = S.itemIds[id]; return n ? S.items[n] : null; };
-const pname = p => p.personaname || p.name || 'Аноним';
+// Ник без букв и цифр («- - -», одни значки) читается как сбой, а у скрытого профиля ника нет вовсе.
+const pname = p => {
+  const n = String(p.personaname || p.name || '').trim();
+  if (/[\p{L}\p{N}]/u.test(n)) return n;
+  return p.account_id ? 'Без ника' : 'Скрытый профиль';
+};
+// Длинный ник переносим по скобкам и знакам, а не посреди слова.
+const nameHtml = n => esc(n).replace(/([)\]_.|\/-])(?=\S)/g, '$1<wbr>').replace(/(\S)([(\[])/g, '$1<wbr>$2');
 const img = (src, cls = '', alt = '') => `<img class="${cls}" src="${esc(src)}" alt="${esc(alt)}" loading="lazy" onerror="this.style.visibility='hidden'">`;
 const POS = { 1: 'Керри', 2: 'Мид', 3: 'Оффлейн', 4: 'Четвёрка', 5: 'Пятёрка' };
 const posLabel = n => `Pos ${n} · ${POS[n]}`;
@@ -563,7 +570,7 @@ function verdictTab() {
       <div class="cbg" style="background-image:url('${esc(heroImg(top))}')"></div>
       <div class="ctop">
         <div class="label red">${T('Главный вклад в поражение', 'Руинер катки')}</div>
-        <div class="who">${img(heroImg(top), 'hport', H(top).name)}<div><h2 class="nm${longName(pname(top))}" title="${esc(pname(top))}">${esc(pname(top))}</h2><div class="sub">${esc(H(top).name)} · ${posLabel(top.pos)} ${rankName(top.rank_tier) ? '· ' + rankName(top.rank_tier) : ''}</div>
+        <div class="who">${img(heroImg(top), 'hport', H(top).name)}<div><h2 class="nm${longName(pname(top))}" title="${esc(pname(top))}">${nameHtml(pname(top))}</h2><div class="sub">${esc(H(top).name)} · ${posLabel(top.pos)} ${rankName(top.rank_tier) ? '· ' + rankName(top.rank_tier) : ''}</div>
           <div class="kda"><b>${top.kills}</b>/<b class="d">${top.deaths}</b>/<b>${top.assists}</b> · ${fmt(top.gold_per_min)} GPM · ${fmt(top.net_worth)} NW</div></div>
           ${ring(top.score)}</div>
       </div>
@@ -801,19 +808,19 @@ function myPlace(p, place, n) {
 function meTab() {
   if (S.meSlot == null) {
     const team = t => S.ps.filter(p => p.team === t);
-    return `<div class="card"><div class="label">Кем ты играл в этом матче?</div><p class="hint">Выбери себя, и мы соберём личный разбор: сильные стороны, слабые места и что делать в следующей игре.</p>
+    return `<div class="card"><div class="label">Кем ты играл в этом матче?</div><p class="hint">Выбери себя, и мы соберём личный разбор: сильные стороны, слабые места и что делать в следующей игре. Нажми там «Это мой аккаунт» — в следующих матчах разбор откроется сразу.</p>
     ${['radiant', 'dire'].map(t => `<div class="pickTeam"><small>${esc(teamName(S.match, t))}</small><div class="pickGrid">${team(t).map(p => `<button class="pickP" data-me="${p.i}">${img(heroImg(p), 'hport sm')}<b>${esc(pname(p))}</b><small>${esc(H(p).name)}</small></button>`).join('')}</div></div>`).join('')}</div>`;
   }
   const p = S.ps.find(x => x.i === S.meSlot), mates = S.ps.filter(x => x.team === p.team).sort((a, b) => b.score - a.score);
   const place = mates.indexOf(p) + 1, weak = weakOf(p).slice(0, 3), strong = strongOf(p).slice(0, 3);
   return `<div class="grid megrid">
     <article class="card mecard">
-      <div class="who">${img(heroImg(p), 'hport', H(p).name)}<div><div class="label ${p.won ? 'green' : 'red'}">${p.won ? 'Победа' : 'Поражение'}</div><h2 class="nm${longName(pname(p))}" title="${esc(pname(p))}">${esc(pname(p))}</h2><div class="sub">${esc(H(p).name)} · ${posLabel(p.pos)}</div>
+      <div class="who">${img(heroImg(p), 'hport', H(p).name)}<div><div class="label ${p.won ? 'green' : 'red'}">${p.won ? 'Победа' : 'Поражение'}</div><h2 class="nm${longName(pname(p))}" title="${esc(pname(p))}">${nameHtml(pname(p))}</h2><div class="sub">${esc(H(p).name)} · ${posLabel(p.pos)}</div>
       <div class="kda"><b>${p.kills}</b>/<b class="d">${p.deaths}</b>/<b>${p.assists}</b> · ${fmt(p.gold_per_min)} GPM · ${fmt(p.xp_per_min)} XPM</div></div>${ring(p.score)}</div>
       <p class="vtext">${myPlace(p, place, mates.length)}</p>
       ${radar(p)}
       <div class="legend center"><span><i style="background:var(--accent)"></i>Ты</span><span><i class="dash"></i>Типичная игра на герое</span></div>
-      <div class="cfoot"><button class="ghost small" data-act="pickOther">Выбрать другого игрока</button>${p.account_id && !ME.isMine(p.account_id) ? `<button class="ghost small" data-act="saveMe" data-acc="${p.account_id}" data-name="${esc(pname(p))}">Запомнить, это мой аккаунт</button>` : p.account_id ? '<span class="hint">Это твой сохранённый аккаунт</span>' : ''}</div>
+      <div class="cfoot">${p.account_id && !ME.isMine(p.account_id) ? `<button class="primary small" data-act="saveMe" data-acc="${p.account_id}" data-name="${esc(pname(p))}" title="В следующих матчах этот разбор откроется сразу, а на главной будет твоя последняя игра">⭐ Это мой аккаунт</button>` : p.account_id ? '<span class="hint">✓ Твой сохранённый аккаунт</span>' : '<span class="hint">Профиль скрыт — запомнить нельзя</span>'}<button class="ghost small" data-act="pickOther">Выбрать другого игрока</button></div>
     </article>
     <div class="col">
       <div class="card"><div class="label red">Что подтянуть</div>${weak.map(k => `<div class="tip2"><div class="th"><i style="background:${FACTORS[k].color}"></i><b>${FACTORS[k].label}</b><em>+${p.parts[k].toFixed(0)} к индексу</em></div><span>${esc(factorInfo(p, k))}</span><p>${TIPS[k]}</p></div>`).join('') || '<div class="empty">Явных провалов нет. Хорошая игра.</div>'}</div>
