@@ -246,6 +246,7 @@ function openShare() {
     <div class="shareGrid">
       <a class="shareBtn tg" href="${esc(tgShareLink())}" target="_blank" rel="noopener" data-act="shareTg"><span>✈️</span><b>Telegram</b><small>Ссылка с вердиктом</small></a>
       <button class="shareBtn" data-act="copyLink"><span>🔗</span><b>Скопировать</b><small>Текст и ссылка</small></button>
+      <button class="shareBtn hotShare" data-act="reel"><span>🎬</span><b>Видео</b><small>Ролик 9:16 для Stories</small></button>
       <button class="shareBtn" data-act="png"><span>🖼</span><b>Картинка</b><small>${Premium.active ? 'Без плашки, своя подпись' : 'PNG для чата'}</small></button>
     </div>
     <a class="botGroup" href="https://t.me/blamedota_bot?startgroup=top" target="_blank" rel="noopener" data-act="botGroup"><span>🏆</span><span><b>Добавь бота в чат пати</b><small>Кидайте Match ID после каток — по воскресеньям бот назовёт руинера недели</small></span></a>`);
@@ -272,6 +273,7 @@ document.addEventListener('click', e => {
     case 'botGroup': return track('bot_group');
     case 'donateGo': return track('donate_go');
     case 'share': return openShare();
+    case 'reel': closeModal(); return openReel();
     case 'login': closeModal(); return Account.login(ds.reason || 'header');
     case 'loginPlus': closeModal(); return Account.login('plus_' + (ds.reason || '')).then(ok => { if (ok && !Premium.active) paywall(ds.reason); });
     case 'accMenu': return accountMenu();

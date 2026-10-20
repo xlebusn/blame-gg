@@ -540,7 +540,7 @@ function render() {
   ${parsed ? '' : `<div class="banner"><div><b>Реплей не разобран.</b> Нет графика золота, драк и вардов, поэтому оценка менее точная. Разбор обычно занимает 1–5 минут.</div><button class="primary small" data-act="parse" ${S.parse ? 'disabled' : ''}>${S.parse ? esc(S.parse) : 'Разобрать реплей'}</button></div>`}
   <div class="tabbar"><nav class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" data-tab="${k}" class="${S.tab === k ? 'on' : ''}">${l}</button>`).join('')}
 </nav>
-  <div class="tabtools"><button class="ghost small tone ${TONE}" data-act="tone" title="Тон текстов: культурно или с жаргоном">${T('🙂', '🤬')}<span class="lbl">${T('Культурно', 'Токсик')}</span></button><button class="primary small" data-act="share">Поделиться</button></div></div>
+  <div class="tabtools"><button class="ghost small tone ${TONE}" data-act="tone" title="Тон текстов: культурно или с жаргоном">${T('🙂', '🤬')}<span class="lbl">${T('Культурно', 'Токсик')}</span></button><button class="ghost small reelBtn" data-act="reel" title="Вертикальное видео на 20 секунд для Stories и чата">🎬<span class="lbl"> Видео</span></button><button class="primary small" data-act="share">Поделиться</button></div></div>
   <div id="tabBody"></div>`;
   renderTab();
 }
@@ -949,5 +949,5 @@ const DEMO_MATCH = '9044969969';
 updateMeBtn();
 renderHistory();
 const qp = new URLSearchParams(location.search);
-if (qp.get('match')) { $('#q').value = qp.get('match'); loadMatch(qp.get('match')); }
+if (qp.get('match')) { $('#q').value = qp.get('match'); Promise.resolve(loadMatch(qp.get('match'))).then(() => { if (qp.get('reel') && S.match) offerReel(); }); }
 else if (qp.get('player')) { setMode('player'); showPlayer(qp.get('player')); }

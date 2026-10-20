@@ -583,7 +583,7 @@ tr:hover .ia { opacity: 1; }
 .ib { border: 1px solid var(--line); background: var(--panel2); border-radius: 7px; width: 26px; height: 26px; display: grid; place-items: center; font-size: 13px; color: var(--muted); }
 .ib:hover { color: var(--text); border-color: #3a4560; }
 
-.shareGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+.shareGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 18px; }
 .shareBtn { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border: 1px solid var(--line); background: var(--panel2); border-radius: 14px; padding: 14px; text-align: left; text-decoration: none; color: var(--text); }
 .shareBtn span { font-size: 22px; }
 .shareBtn small { color: var(--muted); font-size: 12px; }
@@ -649,7 +649,7 @@ code { background: var(--panel2); border-radius: 5px; padding: 1px 5px; font-siz
   .topnav .ghost.small, .plusBtn { height: 34px; padding: 0 9px; }
   .accBtn .lbl { display: none; }
   .features { grid-template-columns: 1fr 1fr; margin-top: 28px; }
-  .shareGrid { grid-template-columns: 1fr; }
+  .shareGrid { grid-template-columns: 1fr 1fr; }
   .tabtools .tone .lbl { display: none; }
   .rrow { grid-template-columns: 14px 30px minmax(0, 1fr) 60px 28px; }
   .promo > div { flex-wrap: wrap; }
@@ -695,3 +695,11 @@ details.more[open] > summary::before { content: '▾ '; }
 .botGroup > span:first-child { font-size: 22px; }
 .botGroup b { display: block; }
 .botGroup small { color: var(--muted); }
+/* видео-хайлайт */
+.modal.reel, .reel { max-width: 460px; }
+.reelWrap { display: grid; place-items: center; margin: 8px 0 14px; }
+.reelWrap canvas, .reelWrap video { width: auto; max-width: 100%; height: min(62vh, 640px); aspect-ratio: 9 / 16; border-radius: 16px; background: #000; border: 1px solid var(--line); }
+.reelBtns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.btnlike { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; padding: 10px 16px; border-radius: 12px; }
+.hint.center { text-align: center; }
+.shareBtn.hotShare { border-color: rgba(255, 77, 94, .5); background: rgba(255, 77, 94, .1); }
