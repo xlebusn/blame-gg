@@ -368,6 +368,13 @@ function loadTma() {
   });
 }
 loadTma();
+// Окно мини-приложения открываем сами, когда матч загрузится: не зависим от того, какой app.js отдал кэш.
+if (TMA) {
+  const t0 = Date.now(), iv = setInterval(() => {
+    if (S.match && !document.querySelector('.modal.reel')) { clearInterval(iv); offerReel(); }
+    else if (Date.now() - t0 > 30000) clearInterval(iv);
+  }, 300);
+}
 
 async function sendReelToTg(blob, type, id, btn) {
   const st = document.getElementById('reelSt');
