@@ -676,3 +676,17 @@ code { background: var(--panel2); border-radius: 5px; padding: 1px 5px; font-siz
   .lmRow > div { min-width: 140px; }
   .lmGo { flex-basis: 100%; }
 }
+details.more { margin-top: 8px; }
+details.more > summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 6px 0; list-style: none; }
+details.more > summary::before { content: '▸ '; }
+details.more[open] > summary::before { content: '▾ '; }
+/* телефон: все вкладки разбора видны сразу, без скрытой прокрутки */
+@media (max-width: 640px) {
+  .tabbar { flex-wrap: wrap; align-items: stretch; gap: 8px; padding-bottom: 8px; }
+  .tabbar .tabs { flex-basis: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; overflow: visible; }
+  .tabs [role=tab] { padding: 9px 4px; font-size: 13px; text-align: center; white-space: normal; border-radius: 8px; border-bottom: 0; margin: 0; }
+  .tabs [role=tab].on { background: var(--panel2); box-shadow: inset 0 -2px 0 var(--accent); }
+  .tabtools { width: 100%; justify-content: flex-end; padding-bottom: 0; }
+  .tabtools .tone .lbl { display: inline; }
+}
+.hist .chip span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

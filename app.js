@@ -461,7 +461,7 @@ async function showPlayer(acc) {
     setStatus('');
     $('#picker').innerHTML = `<div class="card profile">
       <div class="profHead">${img(prof.avatarfull, 'ava big')}<div><b>${esc(prof.personaname || 'Профиль скрыт')}</b><small>${rankName(pr.rank_tier) || 'без ранга'} · последние ${rm.length}: ${wins}W / ${rm.length - wins}L</small></div>
-      <button class="ghost small" data-act="saveMe" data-acc="${acc}" data-name="${esc(prof.personaname || '')}">${ME.isMine(acc) ? 'Уже мой ✓' : 'Это я'}</button><button class="ghost small" data-dossier="${acc}">Досье</button><button class="ghost small" data-party-add="${acc}" data-name="${esc(prof.personaname || acc)}">В пати</button></div>
+      <button class="ghost small" data-act="saveMe" data-acc="${acc}" data-name="${esc(prof.personaname || '')}" title="Запомнить как свой аккаунт: на главной будет разбор твоей последней игры">${ME.isMine(acc) ? 'Уже мой ✓' : 'Это я'}</button><button class="ghost small" data-dossier="${acc}" title="Досье: 20 последних игр, руины и худшие герои (BLAME+)">Досье</button><button class="ghost small" data-party-add="${acc}" data-name="${esc(prof.personaname || acc)}" title="Добавить в рейтинг пати: кто из друзей чаще руинит">+ В пати</button></div>
       <div class="mlist">${rm.map(x => { const w = (x.player_slot < 128) === x.radiant_win; return `<button class="mrow ${w ? 'w' : 'l'}" data-match="${x.match_id}" data-acc="${acc}">
         ${img(heroIcon(x), 'hicon')}<span class="mres">${w ? 'Победа' : 'Поражение'}</span><span class="mhero">${esc(H(x).name)}</span>
         <span class="mkda">${x.kills}/${x.deaths}/${x.assists}</span><span class="mdur">${mmss(x.duration)}</span><span class="mago">${new Date(x.start_time * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span></button>`; }).join('') || '<div class="empty">Матчей не найдено. Возможно, профиль скрыт в настройках Dota 2.</div>'}</div></div>`;
@@ -498,7 +498,7 @@ function pushHistory() {
 }
 function renderHistory() {
   const h = UD.get('history', []).slice(0, 12);
-  $('#history').innerHTML = h.length ? `<div class="histLabel">${globalThis.Account?.me ? 'Твои разборы' : 'Разборы в этой вкладке'}</div><div class="hist">${h.map(x => `<button class="chip" data-match="${x.id}">${img(heroIcon({ hero_id: x.hero }), 'hicon sm')}<span>${x.id}</span><small>${esc(x.score)}</small></button>`).join('')}</div>` : '';
+  $('#history').innerHTML = h.length ? `<div class="histLabel">${globalThis.Account?.me ? 'Твои разборы' : 'Недавние разборы · без входа пропадут, когда закроешь вкладку'}</div><div class="hist">${h.map(x => `<button class="chip" data-match="${x.id}" title="Матч ${x.id}${x.name ? `, руинер ${esc(x.name)}` : ''}">${img(heroIcon({ hero_id: x.hero }), 'hicon sm')}<span>${x.name ? `💀 ${esc(x.name)}` : x.id}</span><small>${esc(x.score)}</small></button>`).join('')}</div>` : '';
 }
 
 /* ---------- рендер ---------- */
@@ -550,9 +550,10 @@ function verdictTab() {
   const conf = confidence(top, second), gap = second ? top.final - second.final : 0;
   const weak = weakOf(top).slice(0, 3);
   const loseT = top.team, winT = loseT === 'radiant' ? 'dire' : 'radiant';
-  const gapText = !second ? '' : gap >= 12 ? T(`Отрыв от следующего игрока ${gap} очков, так что вердикт уверенный.`, `Отрыв от следующего ${gap} очков. Руинер без конкурентов, можно репортить.`)
-    : gap >= 5 ? T(`Следом идёт ${esc(pname(second))} (${esc(H(second).name)}), разница ${gap} очков. Проиграли скорее вдвоём.`, `Но и ${esc(pname(second))} на ${esc(H(second).name)} рядом, всего ${gap} очков. Сливали дуэтом.`)
-      : T(`Разница со следующим всего ${gap} очков: вина распределена по команде, не вешай всё на одного.`, `Разница всего ${gap} очков. Тут не один руинер, тут вся пати лоускиллы.`);
+  const pts = n => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'очко' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'очка' : 'очков'}`;
+  const gapText = !second ? '' : gap >= 12 ? T(`Отрыв от следующего игрока ${pts(gap)}, так что вердикт уверенный.`, `Отрыв от следующего ${pts(gap)}. Руинер без конкурентов, можно репортить.`)
+    : gap >= 5 ? T(`Следом идёт ${esc(pname(second))} (${esc(H(second).name)}), разница ${pts(gap)}. Проиграли скорее вдвоём.`, `Но и ${esc(pname(second))} на ${esc(H(second).name)} рядом, всего ${pts(gap)}. Сливали дуэтом.`)
+      : T(`Разница со следующим всего ${pts(gap)}: вина распределена по команде, не вешай всё на одного.`, `Разница всего ${pts(gap)}. Тут не один руинер, тут вся пати лоускиллы.`);
   const mvp = W[0];
   const strongEnemy = mvp && avg(Object.values(mvp.q)) > .78 ? `Учти и соперника: ${esc(pname(mvp))} на ${esc(H(mvp).name)} сыграл лучше, чем в ${Math.round(avg(Object.values(mvp.q)) * 100)}% игр. Часть поражения — просто сильный противник.` : '';
   const lead = leadInfo(loseT);
@@ -572,12 +573,12 @@ function verdictTab() {
         top.sections.length ? `${T('Подтверждается разбором матча', 'И это не только цифры')}: ${top.sections.map(x => `<b>${esc(x.toLowerCase())}</b>`).join(', ')}. <button class="linkbtn" data-tab="story">Как слили →</button>` : '',
         lead, strongEnemy])}
       <div class="reasons">${weak.map(k => `<div class="reason"><i style="background:${FACTORS[k].color}"></i><div><b>${FACTORS[k].label}</b><span>${esc(factorInfo(top, k))}</span></div><em>+${top.parts[k].toFixed(0)}</em></div>`).join('') || '<div class="empty">Явных провалов нет: индекс собран из мелких сигналов.</div>'}</div>
-      <div class="cfoot"><span class="conf"><span class="bar"><i style="width:${conf}%"></i></span>Уверенность ${conf}%</span><button class="ghost small" data-me="${top.i}">Подробный разбор →</button></div>
+      <div class="cfoot"><span class="conf" title="Насколько руинер оторвался от остальных. Низкая уверенность — вину делит вся команда."><span class="bar"><i style="width:${conf}%"></i></span>Уверенность ${conf}%</span><button class="ghost small" data-me="${top.i}">Подробный разбор →</button></div>
     </article>
 
     <aside class="card ranking">
       <div class="label lrow">Индекс вины · ${esc(teamName(m, loseT))}<span class="info" title="${INDEX_HELP}" aria-label="${INDEX_HELP}">?</span></div>
-      ${L.map((p, k) => `<button class="rrow ${k === 0 ? 'top' : ''}" data-me="${p.i}"><span class="rpos">${k + 1}</span>${img(heroIcon(p), 'hicon')}<span class="rname"><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · Pos ${p.pos}${p.sections.length ? ` · <span class="secs" title="Антирекорды матча: ${esc(p.sections.join(', '))}">⚑${p.sections.length}</span>` : ''}</small></span>${stack(p)}<span class="rnum">${p.score}</span></button>`).join('')}
+      ${L.map((p, k) => `<button class="rrow ${k === 0 ? 'top' : ''}" data-me="${p.i}"><span class="rpos">${k + 1}</span>${img(heroIcon(p), 'hicon')}<span class="rname"><b>${esc(pname(p))}</b><small>${esc(H(p).name)} · Pos ${p.pos}${p.sections.length ? ` · <span class="secs" title="Худший в разделах «Как слили»: ${esc(p.sections.join(', '))}">⚑ ${p.sections.length} ${p.sections.length === 1 ? 'антирекорд' : p.sections.length < 5 ? 'антирекорда' : 'антирекордов'}</span>` : ''}</small></span>${stack(p)}<span class="rnum">${p.score}</span></button>`).join('')}
       ${legend()}
     </aside>
   </div>

@@ -216,7 +216,7 @@ function accountMenu() {
       <button class="primary small" data-act="pickMe">${list.length ? 'Добавить аккаунт' : 'Указать аккаунт'}</button>
       <button class="ghost" data-act="logout">Выйти</button>
     </div>
-    <p class="hint">🔔 — авто-разбор после каждой игры на этом аккаунте. «Основной» показывается на главной и в /last.</p>`, 'acc wide');
+    <p class="hint">🔔 — авто-разбор после каждой игры. У BLAME+ он включается сам, тумблер только чтобы выключить. «Основной» показывается на главной и в /last.</p>`, 'acc wide');
 
   document.querySelectorAll('[data-acc-auto]').forEach(inp => {
     inp.addEventListener('change', async e => {
@@ -237,7 +237,7 @@ async function renderLastMatch() {
   const acc = ME.get();
   if (!acc) {
     box.innerHTML = Account.me
-      ? `<div class="lmEmpty"><b>Укажи свой аккаунт Dota</b> — здесь появится разбор последней игры, а с BLAME+ можно добавить до ${CONFIG.accountsPlus} и включить авто-разбор.<button class="ghost small" data-act="pickMe">Указать</button></div>`
+      ? `<div class="lmEmpty"><b>Укажи свой аккаунт Dota</b> — здесь появится разбор последней игры, а с BLAME+ можно добавить до ${CONFIG.accountsPlus}: авто-разбор в Telegram включится сам.<button class="ghost small" data-act="pickMe">Указать</button></div>`
       : `<div class="lmEmpty"><b>Войди через Telegram</b> — сохраним историю, пати и подписку между устройствами.<button class="ghost small tgBtn" data-act="login" data-reason="home_cta">Войти</button></div>`;
     return;
   }

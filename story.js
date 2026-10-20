@@ -6,6 +6,8 @@ const loseTeam = () => S.match.radiant_win ? 'dire' : 'radiant';
 const winTeam = () => loseTeam() === 'radiant' ? 'dire' : 'radiant';
 const teamOf = t => S.ps.filter(p => p.team === t);
 const byPos = t => Object.fromEntries(teamOf(t).map(p => [p.pos, p]));
+// Лайн считается от того, кто стоит напротив: керри против тройки, тройка против керри, мид против мида.
+const LANE_VS = { 1: 3, 2: 2, 3: 1, 4: 5, 5: 4 };
 const heroTag = (p, cls = '') => `<span class="htag ${cls}">${img(heroIcon(p), 'hicon sm', H(p).name)}<b>${esc(pname(p))}</b><small>${esc(H(p).name)}</small></span>`;
 const at = (p, k, min) => { const a = p[k]; return Array.isArray(a) && a.length ? a[Math.min(min, a.length - 1)] : null; };
 const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + kfmt(Math.abs(n));
@@ -141,7 +143,7 @@ function phases() {
     fl.filter(f => f.lost && f.firstL).forEach(f => { sc[f.firstL.victim.i] += 1.5; });
     teamOf(L).forEach(p => { const c = ld.filter(x => x.victim === p).length; if (c) why[p.i].push(`${c} ${c === 1 ? 'смерть' : c < 5 ? 'смерти' : 'смертей'}`); });
     if (name === 'Линии') teamOf(L).forEach(p => {
-      const o = B[p.pos]; if (!o || !p.gold_t) return;
+      const o = B[LANE_VS[p.pos] ?? p.pos]; if (!o || !p.gold_t) return;
       const diff = at(p, 'gold_t', 10) - at(o, 'gold_t', 10), w = p.pos >= 4 ? 1200 : 700;
       sc[p.i] += clamp(-diff / w, -2, 2);
       if (diff <= -800) why[p.i].push(`${sgn(diff)} золота к 10-й против ${H(o).name}`);
@@ -255,8 +257,15 @@ const ITEM_NORM = {
 };
 const SAVE_ITEMS = ['glimmer_cape', 'force_staff', 'ghost', 'lotus_orb', 'solar_crest', 'pavise', 'guardian_greaves', 'aeon_disk', 'cyclone', 'wind_waker', 'holy_locket', 'boots_of_bearing'];
 const iname = k => S.items[k]?.dname || k;
+const LATE_JOKES = [
+  m => `Опоздал на ${m} мин, как на пары.`,
+  m => `Плюс ${m} мин. Купил, когда игра уже ушла.`,
+  m => `На ${m} мин позже. Доставка Почтой России.`,
+  m => `${m} мин опоздания. К этому времени враг уже собрал следующий слот.`
+];
 function itemIssues() {
   const L = loseTeam(), dmin = (S.match.duration || 0) / 60;
+  let n = 0; // шутки про опоздание по кругу на весь список, чтобы не повторялись подряд
   return teamOf(L).map(p => {
     const iss = [], first = {};
     (p.purchase_log || []).forEach(e => { if (first[e.key] == null) first[e.key] = e.time; });
@@ -264,7 +273,7 @@ function itemIssues() {
     for (const [k, norm] of Object.entries(ITEM_NORM)) {
       if (first[k] == null) continue;
       const min = first[k] / 60, late = min - norm;
-      if (late >= 6) iss.push({ sev: late / 6, text: T(`${iname(k)} на ${Math.round(min)}-й минуте, обычно около ${norm}-й.`, `${iname(k)} на ${Math.round(min)}-й. Норма — ${norm}-я. Опоздал на ${Math.round(late)} минут, как на пары.`) });
+      if (late >= 6) iss.push({ sev: late / 6, text: T(`${iname(k)} на ${Math.round(min)}-й минуте, обычно около ${norm}-й.`, `${iname(k)} на ${Math.round(min)}-й. Норма — ${norm}-я. ${LATE_JOKES[n++ % LATE_JOKES.length](Math.round(late))}`) });
     }
     if (p.pos <= 2 && !has('black_king_bar') && dmin >= 32 && (p.deaths || 0) >= 7) iss.push({ sev: 2, text: T(`Нет BKB за ${Math.round(dmin)} минут при ${p.deaths} смертях.`, `${Math.round(dmin)} минут без BKB и ${p.deaths} смертей. Контроль врага сказал спасибо.`) });
     if (p.pos >= 4 && p.purchase) {
@@ -311,18 +320,21 @@ function roshBuyback() {
       }
       if (d.t < 1800) return;
       const lostB = objs.find(o => o.kind === 'b' && o.by !== L && o.t >= d.t && o.t <= d.t + 100);
-      if (lostB) { add(p, 2); ev.push({ t: d.t, bad: true, html: `${esc(H(p).name)} ${T('погиб без байбека', 'отлетел без байбека')}, через ${Math.round(lostB.t - d.t)} с: ${esc(lostB.text.toLowerCase())}.` }); }
+      if (lostB) { add(p, 2); ev.push({ t: d.t, bad: true, html: `${esc(H(p).name)} ${T('погиб без байбека', 'отлетел без байбека')}, через ${Math.round(lostB.t - d.t)} с: ${esc(lostB.text)}.` }); }
     });
   });
   const top = Object.entries(blame).sort((a, b) => b[1] - a[1])[0];
   return { ev: ev.sort((a, b) => a.t - b.t), ruiner: top && top[1] >= 2 ? S.ps.find(p => p.i === +top[0]) : null };
 }
+const ROSH_SHOWN = 6;
+const evRow = e => `<div class="ev two ${e.bad ? 'dire' : 'radiant'}"><span class="et">${mmss(e.t)}</span><span class="etx">${e.html}</span></div>`;
 function roshCard() {
   const { ev, ruiner } = roshBuyback();
   if (!ev.length) return `<section class="card"><div class="label">${T('Рошан и байбеки', 'Рошан и байбеки')}</div><div class="empty">Ни Рошана, ни спорных байбеков.</div></section>`;
   return `<section class="card"><div class="label">${T('Рошан и байбеки', 'Рошан и байбеки')}</div>
     ${ruiner ? `<p class="vtext">${T('Больше всех ошибок здесь', 'Руинер Рошана и байбеков')}: <b>${esc(pname(ruiner))}</b> (${esc(H(ruiner).name)}).</p>` : ''}
-    <div class="evlist">${ev.map(e => `<div class="ev two ${e.bad ? 'dire' : 'radiant'}"><span class="et">${mmss(e.t)}</span><span class="etx">${e.html}</span></div>`).join('')}</div></section>`;
+    <div class="evlist">${ev.slice(0, ROSH_SHOWN).map(evRow).join('')}</div>
+    ${ev.length > ROSH_SHOWN ? `<details class="more"><summary>Ещё ${ev.length - ROSH_SHOWN}</summary><div class="evlist">${ev.slice(ROSH_SHOWN).map(evRow).join('')}</div></details>` : ''}</section>`;
 }
 
 /* ---------- итог и вкладка ---------- */
