@@ -690,3 +690,8 @@ details.more[open] > summary::before { content: '▾ '; }
   .tabtools .tone .lbl { display: inline; }
 }
 .hist .chip span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.botGroup { display: flex; gap: 12px; align-items: center; margin-top: 14px; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--line); color: inherit; text-decoration: none; }
+.botGroup:hover { border-color: var(--accent); }
+.botGroup > span:first-child { font-size: 22px; }
+.botGroup b { display: block; }
+.botGroup small { color: var(--muted); }

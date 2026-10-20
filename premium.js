@@ -7,9 +7,21 @@ const Premium = {
 };
 
 /* ---------- аналитика (Яндекс Метрика) ---------- */
+// Плюс своя аналитика на воркере: только имя события, пачкой при уходе со страницы или раз в 10 секунд.
+const EVQ = [];
+function flushEvents() {
+  if (!EVQ.length || !CONFIG.apiUrl) return;
+  const body = JSON.stringify({ e: EVQ.splice(0, 10) });
+  try { navigator.sendBeacon?.(`${CONFIG.apiUrl}/api/ev`, new Blob([body], { type: 'text/plain' })) || fetch(`${CONFIG.apiUrl}/api/ev`, { method: 'POST', body, keepalive: true }); } catch {}
+}
+setInterval(flushEvents, 10000);
+addEventListener('pagehide', flushEvents);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushEvents(); });
 function track(goal, params) {
   try { if (CONFIG.metrikaId && window.ym) window.ym(CONFIG.metrikaId, 'reachGoal', goal, params); } catch {}
+  if (/^[a-z][a-z0-9_]{1,31}$/.test(goal)) EVQ.push(goal);
 }
+try { if (!sessionStorage.getItem('bg_visit')) { sessionStorage.setItem('bg_visit', '1'); track(new URLSearchParams(location.search).has('match') ? 'visit_link' : 'visit'); } } catch { track('visit'); }
 (function loadMetrika() {
   if (!CONFIG.metrikaId) return;
   window.ym = window.ym || function () { (window.ym.a = window.ym.a || []).push(arguments); };

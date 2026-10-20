@@ -247,7 +247,8 @@ function openShare() {
       <a class="shareBtn tg" href="${esc(tgShareLink())}" target="_blank" rel="noopener" data-act="shareTg"><span>✈️</span><b>Telegram</b><small>Ссылка с вердиктом</small></a>
       <button class="shareBtn" data-act="copyLink"><span>🔗</span><b>Скопировать</b><small>Текст и ссылка</small></button>
       <button class="shareBtn" data-act="png"><span>🖼</span><b>Картинка</b><small>${Premium.active ? 'Без плашки, своя подпись' : 'PNG для чата'}</small></button>
-    </div>`);
+    </div>
+    <a class="botGroup" href="https://t.me/blamedota_bot?startgroup=top" target="_blank" rel="noopener" data-act="botGroup"><span>🏆</span><span><b>Добавь бота в чат пати</b><small>Кидайте Match ID после каток — по воскресеньям бот назовёт руинера недели</small></span></a>`);
 }
 
 /* ---------- маршруты и события ---------- */
@@ -268,6 +269,7 @@ document.addEventListener('click', e => {
     case 'buyStars': return track('paywall_stars');
     case 'buyBoosty': return track('paywall_boosty');
     case 'shareTg': return track('share_tg');
+    case 'botGroup': return track('bot_group');
     case 'donateGo': return track('donate_go');
     case 'share': return openShare();
     case 'login': closeModal(); return Account.login(ds.reason || 'header');

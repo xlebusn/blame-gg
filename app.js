@@ -834,7 +834,8 @@ function shareText() {
   const m = S.match, L = losers(), top = L[0];
   return `BLAME.GG · матч ${m.match_id} · ${m.radiant_score}:${m.dire_score}\n${T('Главный вклад в поражение', 'Руинер катки')}: ${pname(top)} (${H(top).name}), индекс вины ${top.score}\n${L.map((p, k) => `${k + 1}. ${pname(p)} (${H(p).name}) — ${p.score}`).join('\n')}\n${shareUrl()}`;
 }
-function shareUrl() { return `${location.origin}${location.pathname}?match=${S.match.match_id}`; }
+// Ссылка через воркер: в Telegram и Discord превью сразу показывает руинера, человек попадает на тот же разбор.
+function shareUrl() { return CONFIG.apiUrl && !/127\.0\.0\.1|localhost/.test(CONFIG.apiUrl) ? `${CONFIG.apiUrl}/m/${S.match.match_id}` : `${location.origin}${location.pathname}?match=${S.match.match_id}`; }
 function tgShareLink() {
   const top = losers()[0];
   const text = T(`Кто слил катку? ${pname(top)} на ${H(top).name} — индекс вины ${top.score}`, `Руинер найден: ${pname(top)} на ${H(top).name}, индекс вины ${top.score} 💀`);
