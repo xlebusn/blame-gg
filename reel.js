@@ -180,15 +180,15 @@ function sGold(x, t, d, im, acc) {
 function sMoments(x, t, d) {
   center(x, 'КЛЮЧЕВЫЕ МОМЕНТЫ', 200, '800 34px Unbounded, sans-serif', '#4cc9f0', ease(seg(t, 0, .4)));
   d.moments.forEach((mo, i) => {
-    const a = easeBack(seg(t, .4 + i * .6, 1 + i * .6)), y = 360 + i * 200;
+    const a = easeBack(seg(t, .4 + i * .6, 1 + i * .6)), y = 330 + i * 205;
     x.save(); x.globalAlpha *= clamp(a); x.translate((1 - clamp(a)) * -200, 0);
     x.fillStyle = mo.hot ? 'rgba(255,77,94,.16)' : 'rgba(255,255,255,.06)';
-    x.beginPath(); x.roundRect(50, y, REEL.W - 100, 160, 24); x.fill();
+    x.beginPath(); x.roundRect(50, y, REEL.W - 100, 180, 24); x.fill();
     x.strokeStyle = mo.hot ? '#ff4d5e' : 'rgba(255,255,255,.12)'; x.lineWidth = 3; x.stroke();
     x.font = '800 40px Unbounded, sans-serif'; x.fillStyle = mo.hot ? '#ff4d5e' : '#f5b942'; x.textAlign = 'left';
-    x.fillText(mo.t != null ? mmss(mo.t) : '🔥', 84, y + 66);
+    x.fillText(mo.t != null ? mmss(mo.t) : 'ТОП', 84, y + 66);
     x.font = '600 32px Inter, sans-serif'; x.fillStyle = '#e8ecf3';
-    wrap(x, mo.text, 84, y + 116, REEL.W - 170, 38, 1);
+    wrap(x, mo.text, 84, y + 114, REEL.W - 170, 38, 2);
     x.restore();
   });
 }
@@ -262,8 +262,8 @@ function sOutro(x, t, d) {
   center(x, 'Кинь Match ID — узнай за пару секунд', 720, '600 32px Inter, sans-serif', '#8a93a6', ease(seg(t, .4, .9)));
   const a = ease(seg(t, .7, 1.2));
   x.save(); x.globalAlpha *= a; x.fillStyle = '#ff4d5e'; x.beginPath(); x.roundRect(110, 800, REEL.W - 220, 100, 50); x.fill();
-  x.font = '800 34px Unbounded, sans-serif'; x.fillStyle = '#fff'; x.textAlign = 'center';
-  x.fillText((location.host + location.pathname).replace(/\/$/, '').replace(/^www\./, ''), REEL.W / 2, 863); x.restore();
+  x.restore();
+  center(x, (location.host + location.pathname).replace(/\/$/, '').replace(/^www\./, ''), 863, '800 34px Unbounded, sans-serif', '#fff', a, REEL.W - 280);
   center(x, `или бот @${CONFIG.botUsername || 'blamedota_bot'} в Telegram`, 960, '500 28px Inter, sans-serif', '#8a93a6', ease(seg(t, 1, 1.5)));
 }
 
